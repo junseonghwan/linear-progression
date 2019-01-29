@@ -22,21 +22,21 @@ class LinearProgressionState
 {
     //gsl_matrix *pathways;
     vector<size_t> pathway_membership; // map from gene id to pathway membership (essentially)
+    vector<size_t> pathway_sizes;
 
     size_t n_genes = 0;
     size_t num_pathways = 0;
     bool allocate_passenger_pathway = false;
     
     double log_lik = 0.0;
+    void initialize_pathway_membership();
     
 public:
-    //inline LinearProgressionState() { }
     LinearProgressionState(size_t n_genes, size_t num_pathways, bool allocate_passenger_pathway = false);
-    //LinearProgressionState &operator= ( LinearProgressionState & );
-    LinearProgressionState *copy_state();
-    void initialize(gsl_rng *random);
+    void sample_from_prior(gsl_rng *random);
     void update_pathway_membership(size_t gene_idx, size_t pathway);
-    vector<size_t> &get_pathway();
+    vector<size_t> get_pathway();
+    vector<size_t> get_pathway_sizes();
 
     inline size_t get_num_pathways() { return num_pathways; }
     inline void set_num_pathways(size_t K) { this->num_pathways = K; }

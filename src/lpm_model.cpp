@@ -18,35 +18,33 @@
 LinearProgressionModel::LinearProgressionModel(size_t num_genes,
                                                size_t num_driver_pathways,
                                                size_t num_iter,
-                                               size_t num_mh_iter,
+                                               size_t num_mcmc_iter,
                                                gsl_matrix_view *obs,
+                                               double pathway_swap_prob,
                                                bool allocate_passenger_pathway)
 {
     this->num_genes = num_genes;
     this->num_pathways = allocate_passenger_pathway ? num_driver_pathways + 1 : num_driver_pathways;
     this->num_iter = num_iter;
-    this->num_mh_iter = num_mh_iter;
+    this->num_mcmc_iter = num_mcmc_iter;
     this->obs = obs;
+    this->pathway_swap_prob = pathway_swap_prob;
     this->allocate_passenger_pathway = allocate_passenger_pathway;
-    
+
     indices = new unsigned int[num_driver_pathways];
     for (unsigned int i = 0; i < num_driver_pathways; i++) {
         indices[i] = i;
     }
-}
-
-LinearProgressionModel::LinearProgressionModel(size_t num_genes,
-                       size_t num_driver_pathways,
-                       size_t num_iter,
-                       size_t num_mh_iter,
-                       gsl_matrix_view *obs,
-                       LinearProgressionState *initial,
-                       bool allocate_passenger_pathway) :
-LinearProgressionModel(num_genes, num_driver_pathways, num_iter, num_mh_iter, obs, allocate_passenger_pathway)
-{
-    this->initial = initial;
-    this->initial->set_num_pathways(num_driver_pathways);
-    this->initial->set_log_lik(DOUBLE_NEG_INF);
+    
+    // initialize temporary helper variables
+    for (size_t i = 0; i < num_driver_pathways; i++) {
+        gibbs_log_liks.push_back(0);
+        gibbs_probs.push_back(0);
+    }
+    for (size_t i = 0; i < 2; i++) {
+        swap_probs.push_back(0);
+        swap_log_liks.push_back(0);
+    }
 }
 
 void LinearProgressionModel::set_initial_population(ParticlePopulation<LinearProgressionState> *pop)
@@ -66,10 +64,10 @@ double LinearProgressionModel::get_temperature(size_t t)
 
 pair<LinearProgressionState, double> *LinearProgressionModel::propose_initial(gsl_rng *random, LinearProgressionParameters &params)
 {
-    if (initial == 0 && initial_pop == 0) {
+    if (initial_pop == 0) {
         // sample from prior
         LinearProgressionState *state = new LinearProgressionState(num_genes, num_pathways, allocate_passenger_pathway);
-        state->initialize(random);
+        state->sample_from_prior(random);
         double log_lik = compute_pathway_likelihood(*obs, *state, params);
         state->set_log_lik(log_lik);
 
@@ -78,8 +76,6 @@ pair<LinearProgressionState, double> *LinearProgressionModel::propose_initial(gs
             return new pair<LinearProgressionState, double>(*state, log_lik);
         }
         return propose_next(random, 0, *state, params);
-    } else if (initial_pop == 0) {
-        return propose_next(random, 0, *initial, params);
     } else {
         // prior is provided by initial population
         vector<double> probs(initial_pop->get_num_particles());
@@ -87,26 +83,23 @@ pair<LinearProgressionState, double> *LinearProgressionModel::propose_initial(gs
         size_t idx = multinomial(random, probs);
         LinearProgressionState &s = initial_pop->get_particles()->at(idx);
         return propose_next(random, 0, s, params);
-
     }
 }
 
 pair<LinearProgressionState, double> *LinearProgressionModel::propose_next(gsl_rng *random, int t, LinearProgressionState curr, LinearProgressionParameters &params)
 {
-    //double temperature = get_temperature(t+1);
     double temperature_diff = get_temperature(t+1) - get_temperature(t);
     double log_alpha = temperature_diff * curr.get_log_lik();
 
-    for (size_t i = 0; i < num_mh_iter; i++) {
+    for (size_t i = 0; i < num_mcmc_iter; i++) {
         double prev_log_lik = curr.get_log_lik();
-        
+
         if (num_pathways >= 2) {
             double u = gsl_ran_flat(random, 0.0, 1.0);
-            if (u < 0.2) {
-                vector<double> log_liks(2);
-                log_liks[0] = prev_log_lik;
-                
-                // perform pathway swap move
+            if (u < pathway_swap_prob) {
+                swap_log_liks[0] = prev_log_lik;
+
+                // shuffle indices: swap the first two pathways
                 gsl_ran_shuffle(random, indices, num_pathways, sizeof(unsigned int));
                 unsigned int pathway1 = indices[0];
                 unsigned int pathway2 = indices[1];
@@ -117,10 +110,9 @@ pair<LinearProgressionState, double> *LinearProgressionModel::propose_next(gsl_r
                         curr.update_pathway_membership(g, pathway1);
                     }
                 }
-                log_liks[1] = compute_pathway_likelihood(*obs, curr, params);
-                vector<double> probs(2);
-                normalize(log_liks, probs);
-                size_t k = multinomial(random, probs);
+                swap_log_liks[1] = compute_pathway_likelihood(*obs, curr, params);
+                normalize(swap_log_liks, swap_probs);
+                size_t k = multinomial(random, swap_probs);
                 if (k == 0) {
                     // revert
                     for (size_t g = 0; g < num_genes; g++) {
@@ -131,36 +123,26 @@ pair<LinearProgressionState, double> *LinearProgressionModel::propose_next(gsl_r
                         }
                     }
                 }
-                
+                curr.set_log_lik(swap_log_liks[k]);
                 continue;
             }
         }
-        // sample a gene at random and sample pathway
+        // sample a gene at random and sample pathway at random
         size_t gene_idx = gsl_rng_uniform_int(random, num_genes);
         size_t old_pathway = curr.get_pathway().at(gene_idx);
-        vector<double> log_liks(num_pathways);
         for (size_t new_pathway = 0; new_pathway < num_pathways; new_pathway++) {
             if (old_pathway == new_pathway) {
-                log_liks[new_pathway] = prev_log_lik;
+                gibbs_log_liks[new_pathway] = prev_log_lik;
                 continue;
             }
             curr.update_pathway_membership(gene_idx, new_pathway);
             double new_log_lik = compute_pathway_likelihood(*obs, curr, params);
-            log_liks[new_pathway] = new_log_lik;
+            gibbs_log_liks[new_pathway] = new_log_lik;
         }
-        vector<double> probs(num_pathways);
-        normalize(log_liks, probs);
-        double sum = 0.0;
-        for (size_t i = 0; i < probs.size(); i++) {
-            sum += probs[i];
-        }
-        if (abs(sum - 1.0) > 1e-6) {
-            cerr << "Error in nomralization code!" << endl;
-            exit(-1);
-        }
-        size_t k = multinomial(random, probs);
+        normalize(gibbs_log_liks, gibbs_probs);
+        size_t k = multinomial(random, gibbs_probs);
         curr.update_pathway_membership(gene_idx, k);
-        curr.set_log_lik(log_liks[k]);
+        curr.set_log_lik(gibbs_log_liks[k]);
     }
 
     return new pair<LinearProgressionState, double>(curr, log_alpha);

@@ -21,30 +21,28 @@ class LinearProgressionModel : public ProblemSpecification<LinearProgressionStat
     size_t num_genes;
     size_t num_pathways;
     size_t num_iter;
-    size_t num_mh_iter;
+    size_t num_mcmc_iter;
     gsl_matrix_view *obs = 0;
-    LinearProgressionState *initial = 0;
+    double pathway_swap_prob;
     ParticlePopulation<LinearProgressionState> *initial_pop = 0;
     bool allocate_passenger_pathway;
     double get_temperature(size_t t);
     
     unsigned int *indices;
 
+    vector<double> gibbs_log_liks;
+    vector<double> gibbs_probs;
+    vector<double> swap_log_liks;
+    vector<double> swap_probs;
+
 public:
     LinearProgressionModel(size_t num_genes,
                            size_t num_driver_pathways,
                            size_t num_iter,
-                           size_t num_mh_iter,
+                           size_t num_mcmc_iter,
                            gsl_matrix_view *obs,
+                           double pathway_swap_prob = 0.2,
                            bool allocate_passenger_pathway = false);
-    LinearProgressionModel(size_t num_genes,
-                           size_t num_driver_pathways,
-                           size_t num_iter,
-                           size_t num_mh_iter,
-                           gsl_matrix_view *obs,
-                           LinearProgressionState *initial,
-                           bool allocate_passenger_pathway = false);
-
     void set_initial_population(ParticlePopulation<LinearProgressionState> *pop);
     unsigned long num_iterations();
     pair<LinearProgressionState, double> *propose_initial(gsl_rng *random, LinearProgressionParameters &params);
