@@ -11,38 +11,38 @@
 
 #include "lpm_likelihood.hpp"
 
-double *construct_mutation_matrix(vector<size_t> pathway_membership, size_t n_patients, size_t n_genes, size_t n_pathways)
-{
-    // construct mutation matrix
-    // calculate sizes for each pathways as well
-    double *mut_matrix = new double[n_patients*n_pathways];
-    for (size_t n = 0; n < n_genes; n++) {
-        size_t membership_idx = pathway_membership.at(n);
-        for (size_t k = 0; k < n_pathways; k++) {
-            mut_matrix[n*n_pathways + k] = 0.0;
-            if (membership_idx == k) {
-                mut_matrix[n*n_pathways + k] = 1.0;
-            }
-        }
-    }
-    return mut_matrix;
-}
-
-void fast_matrix_product(gsl_matrix_view &obs, size_t m, vector<size_t> &pathway_membership, size_t num_pathways, vector<size_t> &r)
-{
-    size_t N = pathway_membership.size();
-    for (size_t n = 0; n < N; n++) {
-        double val = gsl_matrix_get(&obs.matrix, m, n);
-        if (val == 1.0) {
-            size_t pathway_idx = pathway_membership[n];
-            if (pathway_idx >= r.size()) {
-                cerr << "Error in fast_matrix_product: invalid size of ret vector is allocated." << endl;
-                exit(-1);
-            }
-            r[pathway_idx] += 1;
-        }
-    }
-}
+//double *construct_mutation_matrix(vector<size_t> pathway_membership, size_t n_patients, size_t n_genes, size_t n_pathways)
+//{
+//    // construct mutation matrix
+//    // calculate sizes for each pathways as well
+//    double *mut_matrix = new double[n_patients*n_pathways];
+//    for (size_t n = 0; n < n_genes; n++) {
+//        size_t membership_idx = pathway_membership.at(n);
+//        for (size_t k = 0; k < n_pathways; k++) {
+//            mut_matrix[n*n_pathways + k] = 0.0;
+//            if (membership_idx == k) {
+//                mut_matrix[n*n_pathways + k] = 1.0;
+//            }
+//        }
+//    }
+//    return mut_matrix;
+//}
+//
+//void fast_matrix_product(gsl_matrix_view &obs, size_t m, vector<size_t> &pathway_membership, size_t num_pathways, vector<size_t> &r)
+//{
+//    size_t N = pathway_membership.size();
+//    for (size_t n = 0; n < N; n++) {
+//        double val = gsl_matrix_get(&obs.matrix, m, n);
+//        if (val == 1.0) {
+//            size_t pathway_idx = pathway_membership[n];
+//            if (pathway_idx >= r.size()) {
+//                cerr << "Error in fast_matrix_product: invalid size of ret vector is allocated." << endl;
+//                exit(-1);
+//            }
+//            r[pathway_idx] += 1;
+//        }
+//    }
+//}
 
 double compute_log_lik_active(double n_mutations, double pathway_size, double bgp, double fbp)
 {
@@ -97,7 +97,7 @@ double compute_log_lik_active(double n_mutations, double pathway_size, double bg
     return log_lik;
 }
 
-double compute_log_lik_not_active(double n_mutations, double pathway_size, double bgp, double fbp)
+double compute_log_lik_not_active(double n_mutations, double pathway_size, double bgp)
 {
     // all mutations are background mutations
     double log_lik = n_mutations * log(bgp);
@@ -105,22 +105,16 @@ double compute_log_lik_not_active(double n_mutations, double pathway_size, doubl
     return log_lik;
 }
 
-double compute_log_lik_passenger(double n_mutations, double bgp)
-{
-    double log_lik = n_mutations * log(bgp);
-    return log_lik;
-}
-
-double compute_likelihood_for_sample(vector<size_t> &r, vector<size_t> &pathway_sizes, size_t stage, double bgp, double fbp)
+double compute_likelihood_for_sample(vector<size_t> &r, LinearProgressionState &state, size_t stage, double bgp, double fbp)
 {
     double log_lik = 0.0;
-    size_t K = pathway_sizes.size();
+    size_t K = state.get_num_pathways();
     for (int k = 0; k < K; k++) {
         double val = r[k];
         if (k <= stage) {
-            log_lik += compute_log_lik_active(val, pathway_sizes[k], bgp, fbp);
+            log_lik += compute_log_lik_active(val, state.get_pathway_size(k), bgp, fbp);
         } else {
-            log_lik += compute_log_lik_not_active(val, pathway_sizes[k], bgp, fbp);
+            log_lik += compute_log_lik_not_active(val, state.get_pathway_size(k), bgp);
         }
     }
     return log_lik;
@@ -143,82 +137,81 @@ bool contains_empty_pathway(vector<size_t> &pathway_sizes)
     return false;
 }
 
-double compute_pathway_likelihood(gsl_matrix_view &obs, LinearProgressionState &state, LinearProgressionParameters &params)
+double compute_pathway_likelihood(gsl_matrix_view &obs, vector<size_t> &sum_vec, LinearProgressionState &state, LinearProgressionParameters &params)
 {
     double log_lik = 0.0;
 
     unsigned int M = obs.matrix.size1; // number of observations
     //unsigned int N = obs.matrix.size2; // number of genes
-    unsigned int K = state.get_num_pathways(); // number of pathways
+    unsigned int K = state.get_num_pathways(); // number of driver pathways
 
-    vector<size_t> pathway_sizes = state.get_pathway_sizes();
-    if (contains_empty_pathway(pathway_sizes)) {
+    if (state.contains_empty_driver_pathway()) {
         return DOUBLE_NEG_INF;
     }
-    
-    vector<size_t> pathway_membership = state.get_pathway();
+
     vector<size_t> *stages = params.has_patient_stages() ? &params.get_patient_progression_stages() : 0;
     vector<size_t> ret(K);
     if (stages != 0) {
         for (size_t m = 0; m < M; m++) {
-            fast_matrix_product(obs, m, pathway_membership, K, ret);
-            double log_lik_m = compute_likelihood_for_sample(ret, pathway_sizes, stages->at(m), params.get_bgp(), params.get_fbp());
+            //fast_matrix_product(obs, m, pathway_membership, K, ret);
+            state.compute_counts_for_sample(obs, sum_vec, m, ret);
+            double log_lik_m = compute_likelihood_for_sample(ret, state, stages->at(m), params.get_bgp(), params.get_fbp());
             log_lik += log_lik_m;
-            reset_r_vector(ret);
         }
     } else {
         // marginalize out stages for each patient
         for (size_t m = 0; m < M; m++) {
             double log_lik_m = DOUBLE_NEG_INF;
-            fast_matrix_product(obs, m, pathway_membership, K, ret);
-            for (size_t stage = 0; stage < K; stage++) {
-                double log_lik_stage = compute_likelihood_for_sample(ret, pathway_sizes, stage, params.get_bgp(), params.get_fbp());
+            //fast_matrix_product(obs, m, pathway_membership, K, ret);
+            state.compute_counts_for_sample(obs, sum_vec, m, ret);
+            // marginalize over patient stages taking on {1, ..., driver pathways}
+            for (size_t stage = 0; stage < state.get_num_driver_pathways(); stage++) {
+                double log_lik_stage = compute_likelihood_for_sample(ret, state, stage, params.get_bgp(), params.get_fbp());
+                log_lik_stage -= log(K);
                 log_lik_m = log_add(log_lik_m, log_lik_stage);
             }
             log_lik += log_lik_m;
-            reset_r_vector(ret);
         }
     }
     return log_lik;
 }
 
-//double compute_pathway_likelihood(gsl_matrix_view &Y, gsl_matrix_view &X, vector<size_t> &stages, double fbp, double bgp)
-//{
-//    double log_lik = 0.0;
-//
-//    unsigned int M = Y.matrix.size1; // number of observations
-//    unsigned int N = Y.matrix.size2; // number of genes
-//    unsigned int K = X.matrix.size2; // number of pathways
-//
-//    // count pathway sizes
-//    vector<int> pathway_sizes(K, 0);
-//    for (size_t i = 0; i < N; i++) {
-//        for (size_t k = 0; k < K; k++) {
-//            if (gsl_matrix_get(&X.matrix, i, k) == 1) {
-//                pathway_sizes[k] += 1;
-//                break;
-//            }
-//        }
-//    }
-//
-//    double r[M*K];
-//    gsl_matrix_view R = gsl_matrix_view_array(r, M, K);
-//    gsl_blas_dgemm (CblasNoTrans, CblasNoTrans,
-//                    1.0, &Y.matrix, &X.matrix,
-//                    0.0, &R.matrix);
-//
-//    for (int m = 0; m < M; m++) {
-//        double log_lik_m = 0.0;
-//        for (int k = 0; k < K; k++) {
-//            double val = gsl_matrix_get(&R.matrix, m, k);
-//            if (k <= stages[m]) {
-//                log_lik_m += compute_log_lik(val, pathway_sizes[k], bgp, fbp);
-//            } else {
-//                log_lik_m += compute_log_lik_bg(val, pathway_sizes[k], bgp, fbp);
-//            }
-//        }
-//        log_lik += log_lik_m;
-//    }
-//
-//    return log_lik;
-//}
+double compute_pathway_likelihood(vector<vector<size_t>> &R, LinearProgressionState &state, LinearProgressionParameters &params)
+{
+    if (R.size() == 0) {
+        cerr << "Error: R matrix is empty" << endl;
+        exit(-1);
+    }
+    
+    double log_lik = 0.0;
+    unsigned int M = R.size(); // number of observations
+    unsigned int K = state.get_num_pathways(); // number of driver pathways
+    
+    if (state.contains_empty_driver_pathway()) {
+        return DOUBLE_NEG_INF;
+    }
+    
+    vector<size_t> *stages = params.has_patient_stages() ? &params.get_patient_progression_stages() : 0;
+    if (stages != 0) {
+        for (size_t m = 0; m < M; m++) {
+            double log_lik_m = compute_likelihood_for_sample(R[m], state, stages->at(m), params.get_bgp(), params.get_fbp());
+            log_lik += log_lik_m;
+        }
+    } else {
+        // marginalize out stages for each patient
+        for (size_t m = 0; m < M; m++) {
+            double log_lik_m = DOUBLE_NEG_INF;
+            // marginalize over patient stages taking on {1, ..., driver pathways}
+            for (size_t stage = 0; stage < state.get_num_driver_pathways(); stage++) {
+                double log_lik_stage = compute_likelihood_for_sample(R[m], state, stage, params.get_bgp(), params.get_fbp());
+                log_lik_stage -= log(K);
+                log_lik_m = log_add(log_lik_m, log_lik_stage);
+            }
+            log_lik += log_lik_m;
+        }
+    }
+    return log_lik;
+}
+
+
+

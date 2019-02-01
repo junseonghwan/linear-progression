@@ -24,12 +24,14 @@ class LPMParamProposal : public PGProposal<LinearProgressionState, LinearProgres
     size_t n_genes;
     size_t n_mh_iter;
     gsl_matrix_view &obs_view;
+    vector<size_t> &row_sum;
     vector<size_t> *stages = 0;
     double a;
     double b;
+    double mh_proposal_sd = 0.02;
 
 public:
-    LPMParamProposal(gsl_matrix_view &obs_view, size_t n_patients, size_t n_pathways, size_t n_genes, size_t n_mh_iters, double a = 0, double b = 0.3);
+    LPMParamProposal(gsl_matrix_view &obs_view, vector<size_t> &row_sum, size_t n_patients, size_t n_pathways, size_t n_genes, size_t n_mh_iters, double a = 0, double b = 0.3);
     LinearProgressionParameters *sample_from_prior(gsl_rng *random);
     LinearProgressionParameters *propose(gsl_rng *random, LinearProgressionParameters *curr, ParticleGenealogy<LinearProgressionState> *genealogy);
     double log_prior(LinearProgressionParameters *curr);
