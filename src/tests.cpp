@@ -339,6 +339,53 @@
 //    return true;
 //}
 //
+//bool test_likelihood4()
+//{
+//    string data_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/LPM/simulated_data/model_selection/npatients20/rep0/";
+//    string obs_file_path = data_path + "/dat.csv";
+//    string stages_file_path = data_path + "/stages.csv";
+//    string gt_file_path = data_path + "/pathways.csv";
+//    string param_file_path = data_path + "/params.csv";
+//
+//    size_t n_patients = 20;
+//    size_t n_genes = 25;
+//    size_t true_model_length = 5;
+//
+//    double *obs = read_data(obs_file_path, n_genes, n_patients);
+//    gsl_matrix_view obs_matrix_view = gsl_matrix_view_array(obs, n_patients, n_genes);
+//    vector<size_t> row_sum(n_patients);
+//    compute_row_sum(obs_matrix_view, row_sum);
+//    vector<size_t> *stages = read_stages(stages_file_path);
+//    vector<size_t> *gt = read_ground_truth(gt_file_path);
+//    LinearProgressionState true_state(n_genes, true_model_length, false);
+//    for (size_t g = 0; g < gt->size(); g++) {
+//        true_state.update_pathway_membership(g, gt->at(g));
+//    }
+//
+//    double fbp = 0.0, bgp = 0.0;
+//    read_error_params(param_file_path, fbp, bgp);
+//    LinearProgressionParameters true_params(fbp, bgp, *stages);
+//    // compute the log-likelihood of the data given the true stages
+//    double log_lik = compute_pathway_likelihood(obs_matrix_view, row_sum, true_state, true_params);
+//    double log_lik_expected = -256.2;
+//    double ret = abs(log_lik - log_lik_expected);
+//    cout << log_lik << " - " << log_lik_expected << "=" << ret << endl;
+//    if (ret > 1e-3) {
+//        return false;
+//    }
+//
+//    LinearProgressionParameters true_params_no_stages(fbp, bgp);
+//    // compute the log-likelihood of the data by marginalizing out the stages
+//    double log_lik_marginal_stages = compute_pathway_likelihood(obs_matrix_view, row_sum, true_state, true_params_no_stages);
+//    double log_lik_marginal_stages_expected = -260.847;
+//    ret = abs(log_lik_marginal_stages - log_lik_marginal_stages_expected);
+//    cout << log_lik_marginal_stages << " - " << log_lik_marginal_stages_expected << " = " << ret << endl;
+//    if (ret > 1e-3) {
+//        return false;
+//    }
+//    return true;
+//}
+
 //void run_tests()
 //{
 //    if (!test_likelihood1()) {

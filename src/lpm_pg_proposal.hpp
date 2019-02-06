@@ -20,18 +20,16 @@ using namespace std;
 class LPMParamProposal : public PGProposal<LinearProgressionState, LinearProgressionParameters>
 {
     size_t n_patients;
-    size_t n_pathways;
-    size_t n_genes;
     size_t n_mh_iter;
-    gsl_matrix_view &obs_view;
+    gsl_matrix &obs_matrix;
     vector<size_t> &row_sum;
     vector<size_t> *stages = 0;
-    double a;
-    double b;
+    double fbp_max;
+    double bgp_max;
     double mh_proposal_sd = 0.02;
 
 public:
-    LPMParamProposal(gsl_matrix_view &obs_view, vector<size_t> &row_sum, size_t n_patients, size_t n_pathways, size_t n_genes, size_t n_mh_iters, double a = 0, double b = 0.3);
+    LPMParamProposal(gsl_matrix &obs, vector<size_t> &row_sum, size_t n_genes, size_t n_mh_iters, double fbp_max, double bgp_max);
     LinearProgressionParameters *sample_from_prior(gsl_rng *random);
     LinearProgressionParameters *propose(gsl_rng *random, LinearProgressionParameters *curr, ParticleGenealogy<LinearProgressionState> *genealogy);
     double log_prior(LinearProgressionParameters *curr);

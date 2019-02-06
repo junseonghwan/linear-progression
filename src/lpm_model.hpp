@@ -22,13 +22,12 @@ class LinearProgressionModel : public ProblemSpecification<LinearProgressionStat
     size_t num_driver_pathways;
     size_t num_smc_iter;
     size_t num_mcmc_iter;
-    gsl_matrix_view &obs;
+    gsl_matrix &obs;
     vector<size_t> &row_sum;
     double pathway_swap_prob;
     bool allocate_passenger_pathway = false;
     bool use_gibbs_kernel = false;
     
-    //ParticlePopulation<LinearProgressionState> *initial_pop = 0;
     LinearProgressionState *initial_state = 0;
     
     // helper variables to limit the number of times new vector/array are allocated
@@ -41,26 +40,34 @@ class LinearProgressionModel : public ProblemSpecification<LinearProgressionStat
     vector<double> gibbs_probs;
     
     double get_temperature(size_t t);
-    pair<LinearProgressionState, double> *mh_kernel(gsl_rng *random, int t, LinearProgressionState &curr,  LinearProgressionParameters &params);
-    pair<LinearProgressionState, double> *gibbs_kernel(gsl_rng *random, int t, LinearProgressionState &curr,  LinearProgressionParameters &params);
-
+    void swap_pathway_move(gsl_rng *random, LinearProgressionState &state, LinearProgressionParameters &params);
+    void mh_kernel(gsl_rng *random, int t, LinearProgressionState &curr, LinearProgressionParameters &params);
+    void gibbs_kernel(gsl_rng *random, int t, LinearProgressionState &curr, LinearProgressionParameters &params);
 
 public:
+    enum MoveType
+    {
+        GIBBS,
+        MH
+    };
+    MoveType move_type;
+
     LinearProgressionModel(size_t num_genes,
                            size_t num_driver_pathways,
                            size_t num_iter,
                            size_t num_mcmc_iter,
-                           gsl_matrix_view &obs,
+                           gsl_matrix &obs,
                            vector<size_t> &row_sum,
                            double pathway_swap_prob = 0.2,
                            bool allocate_passenger_pathway = true,
-                           bool use_gibbs_kernel = true);
+                           bool use_gibbs_kernel = false);
     //void set_initial_population(ParticlePopulation<LinearProgressionState> *pop);
-    void set_initial_state(LinearProgressionState *prev_state);
+    void set_initial_state(gsl_rng *random, LinearProgressionState *prev_state);
     unsigned long num_iterations();
-    pair<LinearProgressionState, double> *propose_initial(gsl_rng *random, LinearProgressionParameters &params);
-    pair<LinearProgressionState, double> *propose_next(gsl_rng *random, int t, LinearProgressionState curr, LinearProgressionParameters &params);
-    ~LinearProgressionModel() { }
+    LinearProgressionState *propose_initial(gsl_rng *random, double &log_w, LinearProgressionParameters &params);
+    LinearProgressionState *propose_next(gsl_rng *random, int t, const LinearProgressionState &curr, double &log_w, LinearProgressionParameters &params);
+    ~LinearProgressionModel();
+    
 };
 
 #endif /* lpm_model_hpp */

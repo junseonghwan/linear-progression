@@ -105,7 +105,7 @@ double compute_log_lik_not_active(double n_mutations, double pathway_size, doubl
     return log_lik;
 }
 
-double compute_likelihood_for_sample(vector<size_t> &r, LinearProgressionState &state, size_t stage, double bgp, double fbp)
+double compute_likelihood_for_sample(vector<size_t> &r, const LinearProgressionState &state, size_t stage, double bgp, double fbp)
 {
     double log_lik = 0.0;
     size_t K = state.get_num_pathways();
@@ -137,11 +137,11 @@ bool contains_empty_pathway(vector<size_t> &pathway_sizes)
     return false;
 }
 
-double compute_pathway_likelihood(gsl_matrix_view &obs, vector<size_t> &sum_vec, LinearProgressionState &state, LinearProgressionParameters &params)
+double compute_pathway_likelihood(gsl_matrix &obs_matrix, vector<size_t> &sum_vec, const LinearProgressionState &state, LinearProgressionParameters &params)
 {
     double log_lik = 0.0;
 
-    unsigned int M = obs.matrix.size1; // number of observations
+    unsigned int M = obs_matrix.size1; // number of observations
     //unsigned int N = obs.matrix.size2; // number of genes
     unsigned int K = state.get_num_pathways(); // number of driver pathways
 
@@ -154,7 +154,7 @@ double compute_pathway_likelihood(gsl_matrix_view &obs, vector<size_t> &sum_vec,
     if (stages != 0) {
         for (size_t m = 0; m < M; m++) {
             //fast_matrix_product(obs, m, pathway_membership, K, ret);
-            state.compute_counts_for_sample(obs, sum_vec, m, ret);
+            state.compute_counts_for_sample(obs_matrix, sum_vec, m, ret);
             double log_lik_m = compute_likelihood_for_sample(ret, state, stages->at(m), params.get_bgp(), params.get_fbp());
             log_lik += log_lik_m;
         }
@@ -163,7 +163,7 @@ double compute_pathway_likelihood(gsl_matrix_view &obs, vector<size_t> &sum_vec,
         for (size_t m = 0; m < M; m++) {
             double log_lik_m = DOUBLE_NEG_INF;
             //fast_matrix_product(obs, m, pathway_membership, K, ret);
-            state.compute_counts_for_sample(obs, sum_vec, m, ret);
+            state.compute_counts_for_sample(obs_matrix, sum_vec, m, ret);
             // marginalize over patient stages taking on {1, ..., driver pathways}
             for (size_t stage = 0; stage < state.get_num_driver_pathways(); stage++) {
                 double log_lik_stage = compute_likelihood_for_sample(ret, state, stage, params.get_bgp(), params.get_fbp());
@@ -176,7 +176,7 @@ double compute_pathway_likelihood(gsl_matrix_view &obs, vector<size_t> &sum_vec,
     return log_lik;
 }
 
-double compute_pathway_likelihood(vector<vector<size_t>> &R, LinearProgressionState &state, LinearProgressionParameters &params)
+double compute_pathway_likelihood(vector<vector<size_t>> &R, const LinearProgressionState &state, LinearProgressionParameters &params)
 {
     if (R.size() == 0) {
         cerr << "Error: R matrix is empty" << endl;
