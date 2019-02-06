@@ -48,7 +48,7 @@ void run_particle_gibbs(gsl_rng *random, gsl_matrix &obs_matrix, vector<size_t> 
                         size_t n_smc_iter, size_t n_mcmc_iter, size_t n_particles,
                         size_t n_pmcmc_iter, size_t n_mh_gibbs_iter,
                         double fbp_max, double bgp_max,
-                        double swap_prob, bool use_gibbs_kernel,
+                        double swap_prob, MoveType move_type,
                         string output_dir)
 {
     size_t n_genes = obs_matrix.size2;
@@ -73,7 +73,7 @@ void run_particle_gibbs(gsl_rng *random, gsl_matrix &obs_matrix, vector<size_t> 
     vector<LinearProgressionParameters *> params;
     for (size_t l = 1; l <= target_model_length; l++) {
         cout << "Running with model length " << l << endl;
-        LinearProgressionModel smc_model(n_genes, l, n_smc_iter, n_mcmc_iter, obs_matrix, row_sum, swap_prob, true, use_gibbs_kernel);
+        LinearProgressionModel smc_model(n_genes, l, n_smc_iter, n_mcmc_iter, obs_matrix, row_sum, swap_prob, true, move_type);
         if (l > 1) {
             smc_model.set_initial_state(random, prev_state_ptr.get());
         }
@@ -81,7 +81,7 @@ void run_particle_gibbs(gsl_rng *random, gsl_matrix &obs_matrix, vector<size_t> 
         // for l < target, we don't need to generate too many samples as convergence is not the concern
         size_t pmcmc_iter = l == target_model_length ? n_pmcmc_iter : 10;
         PMCMCOptions pmcmc_options(random_seed, pmcmc_iter);
-        LPMParamProposal pg_proposal(obs_matrix, row_sum, n_genes, n_mh_gibbs_iter, fbp_max, bgp_max);
+        LPMParamProposal pg_proposal(n_genes, n_mh_gibbs_iter, fbp_max, bgp_max);
         ParticleGibbs<LinearProgressionState, LinearProgressionParameters> pg(pmcmc_options, csmc, pg_proposal);
         pg.run();
 
@@ -104,7 +104,7 @@ size_t infer_model_length(gsl_rng *random, gsl_matrix &obs_matrix, vector<size_t
                             size_t max_model_len, size_t num_samples,
                             size_t n_smc_iter, size_t n_mcmc_iter, size_t n_particles, size_t ess,
                             double fbp_max, double bgp_max,
-                            double swap_prob, LinearProgressionModel::MoveType move_type,
+                            double swap_prob, MoveType move_type,
                             string output_dir)
 {
     size_t n_genes = obs_matrix.size2;
@@ -127,7 +127,7 @@ size_t infer_model_length(gsl_rng *random, gsl_matrix &obs_matrix, vector<size_t
     vector<double> log_marginal_mu(max_model_len);
     vector<double> log_marginal_sd(max_model_len);
     for (size_t l = 1; l <= max_model_len; l++) {
-        LinearProgressionModel *model = new LinearProgressionModel(n_genes, l, n_smc_iter, n_mcmc_iter, obs_matrix, row_sum);
+        LinearProgressionModel *model = new LinearProgressionModel(n_genes, l, n_smc_iter, n_mcmc_iter, obs_matrix, row_sum, swap_prob, true, move_type);
         SMC<LinearProgressionState, LinearProgressionParameters> smc(model, &smc_options);
         double model_evidence = DOUBLE_NEG_INF;
         for (size_t i = 0; i < num_samples; i++) {
@@ -161,7 +161,7 @@ void run_exp(gsl_rng *random, string sim_dat_path,
              size_t n_smc_iter, size_t n_mcmc_iter, size_t n_particles, size_t ess,
              size_t n_pmcmc_iter, size_t n_mh_w_gibbs_iter,
              double fbp_max, double bgp_max,
-             double swap_prob, LinearProgressionModel::MoveType move_type)
+             double swap_prob, MoveType move_type)
 {
     // path to files: data
     // ground truth: pathway, patient stages, params, model length used for generating the data
@@ -185,7 +185,7 @@ void run_exp(gsl_rng *random, string sim_dat_path,
     
     // read the ground truth pathway
     vector<size_t> *gt = read_ground_truth(ground_truth_file);
-    LinearProgressionState true_state(n_genes, true_model_length, true);
+    LinearProgressionState true_state(*obs_matrix, row_sum, n_genes, true_model_length, true);
     for (size_t g = 0; g < gt->size(); g++) {
         true_state.update_pathway_membership(g, gt->at(g));
     }
@@ -239,6 +239,47 @@ void test()
     }
 }
 
+void test_caching(gsl_rng *random, gsl_matrix &obs, vector<size_t> row_sum)
+{
+    size_t n_patients = obs.size1;
+    size_t n_genes = obs.size2;
+    size_t n_drivers = 3;
+    size_t n_pathways = n_drivers + 1;
+    LinearProgressionState state(obs, row_sum, n_genes, n_drivers, true);
+    
+    size_t *genes = new size_t[n_genes];
+    for (size_t i = 0; i < n_genes; i++) {
+        genes[i] = i;
+    }
+    gsl_ran_shuffle(random, genes, n_genes, sizeof(size_t));
+    for (size_t i = 0; i < n_genes; i++) {
+        
+        size_t new_pathway = gsl_rng_uniform_int(random, n_pathways);
+        state.update_pathway_membership(genes[i], new_pathway);
+    }
+    
+    for (size_t m = 0; m < n_patients; m++) {
+        vector<size_t> r(n_pathways);
+        fast_matrix_product(obs, m, state.get_pathway_membership(), r);
+        
+        // compare r vs state's cache version
+        const vector<size_t> &cache_r = state.get_cache_at(m);
+        
+        if (r.size() != cache_r.size()) {
+            cerr << "Cache test failed: size mismatch." << endl;
+            exit(-1);
+        }
+        
+        for (size_t i = 0; i < r.size(); i++) {
+            if (r[i] != cache_r[i]) {
+                cerr << "Cache test failed: calculation mismatch." << endl;
+                exit(-1);
+            }
+        }
+    }
+    cout << "Cache test passed!" << endl;
+}
+
 int main(int argc, char *argv[]) // TODO: take arguments from command line
 {
     unsigned long seed;
@@ -269,7 +310,7 @@ int main(int argc, char *argv[]) // TODO: take arguments from command line
     // SMC move performs swap move or
     double swap_move_prob;
     string move_type_str;
-    LinearProgressionModel::MoveType move_type;
+    MoveType move_type;
     
     string output_dir;
 
@@ -323,7 +364,7 @@ int main(int argc, char *argv[]) // TODO: take arguments from command line
     else {
         cout << "Model length: " << model_len << endl;
     }
-    move_type = move_type_str == "GIBBS" ? LinearProgressionModel::MoveType::GIBBS : LinearProgressionModel::MoveType::MH;
+    move_type = move_type_str == "GIBBS" ? MoveType::GIBBS : MoveType::MH;
     
     gsl_rng *random = generate_random_object(seed);
 
@@ -346,6 +387,8 @@ int main(int argc, char *argv[]) // TODO: take arguments from command line
         vector<size_t> row_sum(obs_matrix->size1);
         compute_row_sum(*obs_matrix, row_sum);
 
+        test_caching(random, *obs_matrix, row_sum);
+        
         if (infer_model_len) {
             model_len = infer_model_length(random, *obs_matrix, row_sum, model_len, n_mc_samples, n_smc_iter, n_mcmc_iter, n_particles, ess, fbp_max, bgp_max, swap_move_prob, move_type, output_dir);
             cout << "Inferred model length: " << model_len << endl;

@@ -23,10 +23,10 @@ LinearProgressionModel::LinearProgressionModel(size_t num_genes,
                                                vector<size_t> &row_sum,
                                                double pathway_swap_prob,
                                                bool allocate_passenger_pathway,
-                                               bool use_gibbs_kernel) :
+                                               MoveType move_type) :
 num_genes(num_genes), num_driver_pathways(num_driver_pathways), num_smc_iter(num_smc_iter), num_mcmc_iter(num_mcmc_iter),
 obs(obs), row_sum(row_sum), pathway_swap_prob(pathway_swap_prob), allocate_passenger_pathway(allocate_passenger_pathway),
-use_gibbs_kernel(use_gibbs_kernel)
+move_type(move_type)
 {
     // initialize helper variables
     pathway_indices = new unsigned int[num_driver_pathways];
@@ -39,7 +39,7 @@ use_gibbs_kernel(use_gibbs_kernel)
         move_log_liks.push_back(0);
     }
     
-    if (use_gibbs_kernel) {
+    if (move_type == GIBBS) {
         size_t num_pathways = allocate_passenger_pathway ? num_driver_pathways + 1 : num_driver_pathways;
         for (size_t k = 0; k < num_pathways; k++) {
             gibbs_log_liks.push_back(0);
@@ -47,11 +47,6 @@ use_gibbs_kernel(use_gibbs_kernel)
         }
     }
 }
-
-//void LinearProgressionModel::set_initial_population(ParticlePopulation<LinearProgressionState> *pop)
-//{
-//    initial_pop = pop;
-//}
 
 void LinearProgressionModel::set_initial_state(gsl_rng *random, LinearProgressionState *prev_state)
 {
@@ -73,11 +68,11 @@ LinearProgressionState *LinearProgressionModel::propose_initial(gsl_rng *random,
     if (initial_state == 0) {
         if (num_smc_iter == 1) {
             // basically importance sampling -- sample from prior
-            LinearProgressionState *state = new LinearProgressionState(num_genes, num_driver_pathways, allocate_passenger_pathway);
+            LinearProgressionState *state = new LinearProgressionState(obs, row_sum, num_genes, num_driver_pathways, allocate_passenger_pathway);
             return state;
         }
 
-        LinearProgressionState state(num_genes, num_driver_pathways, allocate_passenger_pathway);
+        LinearProgressionState state(obs, row_sum, num_genes, num_driver_pathways, allocate_passenger_pathway);
         state.sample_from_prior(random);
         double log_lik = compute_pathway_likelihood(obs, row_sum, state, params);
         state.set_log_lik(log_lik);
@@ -98,10 +93,13 @@ LinearProgressionState *LinearProgressionModel::propose_next(gsl_rng *random, in
 
     // make a copy
     LinearProgressionState *new_state = new LinearProgressionState(curr);
-    if (use_gibbs_kernel) {
+    if (move_type == GIBBS) {
         gibbs_kernel(random, t, *new_state, params);
-    } else {
+    } else if (move_type == MH){
         mh_kernel(random, t, *new_state, params);
+    } else {
+        cerr << "Error: Invalid move type provided." << endl;
+        exit(-1);
     }
     return new_state;
 }
@@ -141,7 +139,7 @@ void LinearProgressionModel::mh_kernel(gsl_rng *random, int t, LinearProgression
         // sample a gene at random and sample pathway at random
         double prev_log_lik = state.get_log_lik();
         size_t gene_idx = gsl_rng_uniform_int(random, num_genes);
-        size_t old_pathway = state.get_pathway_membership(gene_idx);
+        size_t old_pathway = state.get_pathway_membership_of(gene_idx);
         size_t new_pathway = gsl_rng_uniform_int(random, state.get_num_pathways());
         state.update_pathway_membership(gene_idx, new_pathway);
         double new_log_lik = compute_pathway_likelihood(obs, row_sum, state, params);
@@ -170,7 +168,7 @@ void LinearProgressionModel::gibbs_kernel(gsl_rng *random, int t, LinearProgress
         // sample a gene at random and sample pathway at random
         double prev_log_lik = state.get_log_lik();
         size_t gene_idx = gsl_rng_uniform_int(random, num_genes);
-        size_t old_pathway = state.get_pathway_membership(gene_idx);
+        size_t old_pathway = state.get_pathway_membership_of(gene_idx);
         for (size_t k = 0; k < state.get_num_pathways(); k++) {
             if (k == old_pathway) {
                 gibbs_log_liks[k] = prev_log_lik;

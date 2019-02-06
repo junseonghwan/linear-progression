@@ -16,6 +16,12 @@
 #include "lpm_params.hpp"
 #include "lpm_state.hpp"
 
+enum MoveType
+{
+    GIBBS,
+    MH
+};
+
 class LinearProgressionModel : public ProblemSpecification<LinearProgressionState, LinearProgressionParameters>
 {
     size_t num_genes;
@@ -26,7 +32,7 @@ class LinearProgressionModel : public ProblemSpecification<LinearProgressionStat
     vector<size_t> &row_sum;
     double pathway_swap_prob;
     bool allocate_passenger_pathway = false;
-    bool use_gibbs_kernel = false;
+    MoveType move_type;
     
     LinearProgressionState *initial_state = 0;
     
@@ -45,12 +51,6 @@ class LinearProgressionModel : public ProblemSpecification<LinearProgressionStat
     void gibbs_kernel(gsl_rng *random, int t, LinearProgressionState &curr, LinearProgressionParameters &params);
 
 public:
-    enum MoveType
-    {
-        GIBBS,
-        MH
-    };
-    MoveType move_type;
 
     LinearProgressionModel(size_t num_genes,
                            size_t num_driver_pathways,
@@ -58,10 +58,9 @@ public:
                            size_t num_mcmc_iter,
                            gsl_matrix &obs,
                            vector<size_t> &row_sum,
-                           double pathway_swap_prob = 0.2,
-                           bool allocate_passenger_pathway = true,
-                           bool use_gibbs_kernel = false);
-    //void set_initial_population(ParticlePopulation<LinearProgressionState> *pop);
+                           double pathway_swap_prob,
+                           bool allocate_passenger_pathway,
+                           MoveType move_type);
     void set_initial_state(gsl_rng *random, LinearProgressionState *prev_state);
     unsigned long num_iterations();
     LinearProgressionState *propose_initial(gsl_rng *random, double &log_w, LinearProgressionParameters &params);

@@ -14,8 +14,8 @@
 #include "lpm_likelihood.hpp"
 #include "lpm_pg_proposal.hpp"
 
-LPMParamProposal::LPMParamProposal(gsl_matrix &obs_matrix, vector<size_t> &row_sum, size_t n_patients, size_t n_mh_iters, double fbp_max, double bgp_max) :
-n_patients(n_patients), n_mh_iter(n_mh_iters), obs_matrix(obs_matrix), row_sum(row_sum), fbp_max(fbp_max), bgp_max(bgp_max)
+LPMParamProposal::LPMParamProposal(size_t n_patients, size_t n_mh_iters, double fbp_max, double bgp_max) :
+n_patients(n_patients), n_mh_iter(n_mh_iters), fbp_max(fbp_max), bgp_max(bgp_max)
 {
     stages = new vector<size_t>(n_patients, 0);
 }
@@ -40,12 +40,13 @@ LinearProgressionParameters *LPMParamProposal::propose(gsl_rng *random, LinearPr
     double old_bgp = new_param->get_bgp();
 
     // compute the counts using obs, row_sum, and curr
-    size_t K = state.get_num_pathways();
+    //size_t K = state.get_num_pathways();
     vector<vector<size_t>> R(n_patients);
     for (size_t m = 0; m < n_patients; m++) {
-        vector<size_t> r(K);
-        state.compute_counts_for_sample(obs_matrix, row_sum, m, r);
-        R[m] = r;
+        //vector<size_t> r(K);
+        //state.compute_counts_for_sample(obs_matrix, row_sum, m, r);
+        //R[m] = r;
+        R[m] = state.get_cache_at(m);
     }
 
     double old_log_lik = compute_pathway_likelihood(R, state, *curr);
