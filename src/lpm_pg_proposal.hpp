@@ -27,10 +27,10 @@ class LPMParamProposal : public PGProposal<LinearProgressionState, LinearProgres
     double mh_proposal_sd = 0.02;
 
 public:
-    LPMParamProposal(size_t n_genes, size_t n_mh_iters, double fbp_max, double bgp_max);
-    LinearProgressionParameters *sample_from_prior(gsl_rng *random);
-    LinearProgressionParameters *propose(gsl_rng *random, LinearProgressionParameters *curr, ParticleGenealogy<LinearProgressionState> *genealogy);
-    double log_prior(LinearProgressionParameters *curr);
+    LPMParamProposal(size_t n_patients, size_t n_mh_iters, double fbp_max, double bgp_max);
+    shared_ptr<LinearProgressionParameters> sample_from_prior(gsl_rng *random);
+    shared_ptr<LinearProgressionParameters> propose(gsl_rng *random, const LinearProgressionParameters &curr, shared_ptr<ParticleGenealogy<LinearProgressionState>> genealogy);
+    double log_prior(const LinearProgressionParameters &curr);
     inline vector<size_t> &get_stages() { return *stages; }
 };
 

@@ -20,18 +20,18 @@ n_patients(n_patients), n_mh_iter(n_mh_iters), fbp_max(fbp_max), bgp_max(bgp_max
     stages = new vector<size_t>(n_patients, 0);
 }
 
-LinearProgressionParameters *LPMParamProposal::sample_from_prior(gsl_rng *random)
+shared_ptr<LinearProgressionParameters> LPMParamProposal::sample_from_prior(gsl_rng *random)
 {
     double fbp = gsl_ran_flat(random, 0.0, fbp_max);
     double bgp = gsl_ran_flat(random, 0.0, bgp_max);
     //LinearProgressionParameters *new_param = new LinearProgressionParameters(fbp, bgp, *stages);
-    LinearProgressionParameters *new_param = new LinearProgressionParameters(fbp, bgp);
-    return new_param;
+    shared_ptr<LinearProgressionParameters> ret(new LinearProgressionParameters(fbp, bgp));
+    return ret;
 }
 
-LinearProgressionParameters *LPMParamProposal::propose(gsl_rng *random, LinearProgressionParameters *curr, ParticleGenealogy<LinearProgressionState> *genealogy)
+shared_ptr<LinearProgressionParameters> LPMParamProposal::propose(gsl_rng *random, const LinearProgressionParameters &curr, shared_ptr<ParticleGenealogy<LinearProgressionState>> genealogy)
 {
-    LinearProgressionParameters *new_param = new LinearProgressionParameters(curr->get_fbp(), curr->get_bgp());
+    LinearProgressionParameters *new_param = new LinearProgressionParameters(curr.get_fbp(), curr.get_bgp());
 
     const LinearProgressionState &state = genealogy->get_state_at(genealogy->size()-1);
 
@@ -49,7 +49,7 @@ LinearProgressionParameters *LPMParamProposal::propose(gsl_rng *random, LinearPr
         R[m] = state.get_cache_at(m);
     }
 
-    double old_log_lik = compute_pathway_likelihood(R, state, *curr);
+    double old_log_lik = compute_pathway_likelihood(R, state, curr);
     cout << "(" << old_fbp << ", " << old_bgp << ") -> ";
     for (size_t i = 0; i < n_mh_iter; i++) {
         double new_fbp = gsl_ran_gaussian(random, mh_proposal_sd) + old_fbp;
@@ -58,7 +58,7 @@ LinearProgressionParameters *LPMParamProposal::propose(gsl_rng *random, LinearPr
         }
         
         new_param->set_fbp(new_fbp);
-        double new_log_lik = compute_pathway_likelihood(R, state, *curr);
+        double new_log_lik = compute_pathway_likelihood(R, state, curr);
         double log_u = log(gsl_ran_flat(random, 0.0, 1.0));
         if (log_u < (new_log_lik - old_log_lik)) {
             // accept
@@ -76,7 +76,7 @@ LinearProgressionParameters *LPMParamProposal::propose(gsl_rng *random, LinearPr
         }
 
         new_param->set_bgp(new_bgp);
-        double new_log_lik = compute_pathway_likelihood(R, state, *curr);
+        double new_log_lik = compute_pathway_likelihood(R, state, curr);
         double log_u = log(gsl_ran_flat(random, 0.0, 1.0));
         if (log_u < (new_log_lik - old_log_lik)) {
             // accept
@@ -88,10 +88,10 @@ LinearProgressionParameters *LPMParamProposal::propose(gsl_rng *random, LinearPr
         }
     }
     cout << "(" << new_param->get_fbp() << ", " << new_param->get_bgp() << ")" << endl;
-    return new_param;
+    return shared_ptr<LinearProgressionParameters>(new_param);
 }
 
-double LPMParamProposal::log_prior(LinearProgressionParameters *curr)
+double LPMParamProposal::log_prior(const LinearProgressionParameters &curr)
 {
     // proportional to 0
     return 0.0;

@@ -14,17 +14,18 @@ using namespace std;
 
 class LinearProgressionParameters
 {
-    vector<size_t> *stages = 0;
+//    vector<size_t> stages;
     double fbp;
     double bgp;
 public:
     LinearProgressionParameters(double fbp, double bgp);
-    LinearProgressionParameters(double fbp, double bgp, vector<size_t> &stages);
-    bool has_patient_stages();
-    vector<size_t> &get_patient_progression_stages();
-    void set_patient_progression_stages(vector<size_t> &stages);
-    double get_fbp();
-    double get_bgp();
+//    LinearProgressionParameters(double fbp, double bgp, vector<size_t> &stages);
+//   bool has_patient_stages() const;
+//    const vector<size_t> &get_patient_progression_stages() const;
+    double get_fbp() const;
+    double get_bgp() const;
+
+//    void set_patient_progression_stages(vector<size_t> &stages);
     void set_fbp(double fbp);
     void set_bgp(double bgp);
 };

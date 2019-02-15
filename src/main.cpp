@@ -1,9 +1,13 @@
-
+#include <chrono>
 #include <iostream>
 #include <math.h>
 #include <stdio.h>
+#include <thread>
+#include <unordered_map>
 #include <vector>
 #include <string>
+
+#include <omp.h>
 
 #include <boost/program_options.hpp>
 
@@ -19,6 +23,7 @@
 #include "data_util.hpp"
 #include "lpm_likelihood.hpp"
 #include "lpm_model.hpp"
+#include "lpm_model_cache.hpp"
 #include "lpm_params.hpp"
 #include "lpm_pg_proposal.hpp"
 #include "lpm_state.hpp"
@@ -49,8 +54,9 @@ void run_particle_gibbs(gsl_rng *random, gsl_matrix &obs_matrix, vector<size_t> 
                         size_t n_pmcmc_iter, size_t n_mh_gibbs_iter,
                         double fbp_max, double bgp_max,
                         double swap_prob, MoveType move_type,
-                        string output_dir)
+                        string output_dir, size_t n_threads)
 {
+    size_t n_patients = obs_matrix.size1;
     size_t n_genes = obs_matrix.size2;
 
     if (target_model_length >= n_genes)
@@ -69,35 +75,33 @@ void run_particle_gibbs(gsl_rng *random, gsl_matrix &obs_matrix, vector<size_t> 
     size_t random_seed = gsl_rng_get(random);
 
     shared_ptr<LinearProgressionState> prev_state_ptr;
-    vector<ParticleGenealogy<LinearProgressionState> *> states;
-    vector<LinearProgressionParameters *> params;
     for (size_t l = 1; l <= target_model_length; l++) {
         cout << "Running with model length " << l << endl;
         LinearProgressionModel smc_model(n_genes, l, n_smc_iter, n_mcmc_iter, obs_matrix, row_sum, swap_prob, true, move_type);
         if (l > 1) {
             smc_model.set_initial_state(random, prev_state_ptr.get());
         }
-        ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(&smc_model, &smc_options);
+        ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
         // for l < target, we don't need to generate too many samples as convergence is not the concern
-        size_t pmcmc_iter = l == target_model_length ? n_pmcmc_iter : 10;
-        PMCMCOptions pmcmc_options(random_seed, pmcmc_iter);
-        LPMParamProposal pg_proposal(n_genes, n_mh_gibbs_iter, fbp_max, bgp_max);
+        PMCMCOptions pmcmc_options(random_seed, round(n_pmcmc_iter/10));
+        LPMParamProposal pg_proposal(n_patients, n_mh_gibbs_iter, fbp_max, bgp_max);
         ParticleGibbs<LinearProgressionState, LinearProgressionParameters> pg(pmcmc_options, csmc, pg_proposal);
         pg.run();
 
         // get the last genealogy, last state to initialize the next step
-        states = pg.get_states();
-        ParticleGenealogy<LinearProgressionState> *genealogy = states.at(states.size() - 1);
+        vector<shared_ptr<ParticleGenealogy<LinearProgressionState> > > &states = pg.get_states();
+        ParticleGenealogy<LinearProgressionState> *genealogy = states.at(states.size() - 1).get();
         const LinearProgressionState &state = genealogy->get_state_at(genealogy->size() - 1);
         prev_state_ptr.reset(new LinearProgressionState(state)); // make a copy
         cout << "Current solution:\n" << state.to_string() << endl;
 
         if (l == target_model_length) {
-            params = pg.get_parameters();
+            vector<shared_ptr<LinearProgressionParameters> > &params = pg.get_parameters();
+            write_pg_output(output_dir, states, params);
         }
     }
     // output parameters and states for the targe model length
-    write_pg_output(output_dir, states, params);
+    
 }
 
 size_t infer_model_length(gsl_rng *random, gsl_matrix &obs_matrix, vector<size_t> &row_sum,
@@ -105,9 +109,18 @@ size_t infer_model_length(gsl_rng *random, gsl_matrix &obs_matrix, vector<size_t
                             size_t n_smc_iter, size_t n_mcmc_iter, size_t n_particles, size_t ess,
                             double fbp_max, double bgp_max,
                             double swap_prob, MoveType move_type,
-                            string output_dir)
+                            string output_dir, size_t num_threads)
 {
+    size_t n_patients = obs_matrix.size1;
     size_t n_genes = obs_matrix.size2;
+    
+    cout << "Inferring model length: " << endl;
+    cout << "# Patients: " << n_patients << endl;
+    cout << "# Genes: " << n_genes << endl;
+    cout << "# Particles: " << n_particles << endl;
+    cout << "# MC Samples: " << num_samples << endl;
+    cout << "# SMC iters: " << n_smc_iter << endl;
+    cout << "# MCMC iters: " << n_mcmc_iter << endl;
 
     if (max_model_len >= n_genes)
     {
@@ -119,27 +132,56 @@ size_t infer_model_length(gsl_rng *random, gsl_matrix &obs_matrix, vector<size_t
     smc_options.ess_threshold = ess;
     smc_options.num_particles = n_particles;
     smc_options.resample_last_round = false;
+    smc_options.debug = false;
 
-    LinearProgressionParameters params(gsl_ran_flat(random, 0.0, fbp_max), gsl_ran_flat(random, 0.0, bgp_max));
     double *log_marginals = new double[num_samples];
     double best_marginal_log_lik = DOUBLE_NEG_INF;
     size_t best_l = 0;
     vector<double> log_marginal_mu(max_model_len);
     vector<double> log_marginal_sd(max_model_len);
     for (size_t l = 1; l <= max_model_len; l++) {
-        LinearProgressionModel *model = new LinearProgressionModel(n_genes, l, n_smc_iter, n_mcmc_iter, obs_matrix, row_sum, swap_prob, true, move_type);
-        SMC<LinearProgressionState, LinearProgressionParameters> smc(model, &smc_options);
+        cout << "Model length: " << l << endl;
+        if (num_threads == 1) {
+            cout << "Running times: {" << endl;
+        }
+
         double model_evidence = DOUBLE_NEG_INF;
-        for (size_t i = 0; i < num_samples; i++) {
-            params.set_bgp(gsl_ran_flat(random, 0.0, bgp_max));
-            params.set_fbp(gsl_ran_flat(random, 0.0, fbp_max));
-            smc.run_smc(params);
-            model_evidence = log_add(model_evidence, smc.get_log_marginal_likelihood());
-            log_marginals[i] = smc.get_log_marginal_likelihood();
+
+        omp_set_num_threads(num_threads);
+#pragma omp parallel
+        {
+            size_t id = omp_get_thread_num();
+            size_t n_threads = omp_get_num_threads();
+            size_t start_idx = id * num_samples/n_threads;
+            size_t end_idx = (id + 1) * num_samples/n_threads;
+            if (id == n_threads - 1) {
+                end_idx = num_samples;
+            }
+            //printf("%ld : [%ld, %ld)\n", id, start_idx, end_idx);
+#pragma omp for
+            for (size_t i = start_idx; i < end_idx; i++) {
+                LinearProgressionModel model(n_genes, l, n_smc_iter, n_mcmc_iter, obs_matrix, row_sum, swap_prob, true, move_type);
+                LinearProgressionParameters params(gsl_ran_flat(random, 0.0, fbp_max), gsl_ran_flat(random, 0.0, bgp_max));
+                ConditionalSMC<LinearProgressionState, LinearProgressionParameters> smc(model, smc_options);
+                auto start = std::chrono::high_resolution_clock::now();
+                smc.initialize(params);
+                auto end = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> elapsed = end - start;
+                if (num_threads == 1) {
+                    printf("%f\n", elapsed.count());
+                }
+                
+                log_marginals[i] = smc.get_log_marginal_likelihood();
+#pragma omp critical
+                model_evidence = log_add(model_evidence, log_marginals[i]);
+            }
+        }
+        if (num_threads == 1) {
+            cout << "}" << endl;
         }
 
         model_evidence = model_evidence - log(num_samples);
-        cout << "Model " << l << ": " << model_evidence << endl;
+        cout << "Model evidence: " << model_evidence << endl;
         if (model_evidence > best_marginal_log_lik) {
             best_marginal_log_lik = model_evidence;
             best_l = l;
@@ -161,7 +203,8 @@ void run_exp(gsl_rng *random, string sim_dat_path,
              size_t n_smc_iter, size_t n_mcmc_iter, size_t n_particles, size_t ess,
              size_t n_pmcmc_iter, size_t n_mh_w_gibbs_iter,
              double fbp_max, double bgp_max,
-             double swap_prob, MoveType move_type)
+             double swap_prob, MoveType move_type,
+             size_t n_threads)
 {
     // path to files: data
     // ground truth: pathway, patient stages, params, model length used for generating the data
@@ -201,10 +244,10 @@ void run_exp(gsl_rng *random, string sim_dat_path,
     cout << "Likelihood at truth: " << log_lik_at_truth << endl;
 
     // 1. run model selection
-    size_t best_l = infer_model_length(random, *obs_matrix, row_sum, max_model_len, num_samples, n_smc_iter, n_mcmc_iter, n_particles, ess, fbp_max, bgp_max, swap_prob, move_type, sim_dat_path);
+    size_t best_l = infer_model_length(random, *obs_matrix, row_sum, max_model_len, num_samples, n_smc_iter, n_mcmc_iter, n_particles, ess, fbp_max, bgp_max, swap_prob, move_type, sim_dat_path, n_threads);
 
     // 2. run Particle Gibbs: generate parameters and pathways (samples)
-    run_particle_gibbs(random, *obs_matrix, row_sum, best_l, n_smc_iter, n_mcmc_iter, n_particles, n_pmcmc_iter, n_mh_w_gibbs_iter, fbp_max, bgp_max, swap_prob, move_type, sim_dat_path);
+    run_particle_gibbs(random, *obs_matrix, row_sum, best_l, n_smc_iter, n_mcmc_iter, n_particles, n_pmcmc_iter, n_mh_w_gibbs_iter, fbp_max, bgp_max, swap_prob, move_type, sim_dat_path, n_threads);
 }
 
 void test()
@@ -239,7 +282,7 @@ void test()
     }
 }
 
-void test_caching(gsl_rng *random, gsl_matrix &obs, vector<size_t> row_sum)
+void test_caching(gsl_rng *random, gsl_matrix &obs, vector<size_t> &row_sum)
 {
     size_t n_patients = obs.size1;
     size_t n_genes = obs.size2;
@@ -247,16 +290,8 @@ void test_caching(gsl_rng *random, gsl_matrix &obs, vector<size_t> row_sum)
     size_t n_pathways = n_drivers + 1;
     LinearProgressionState state(obs, row_sum, n_genes, n_drivers, true);
     
-    size_t *genes = new size_t[n_genes];
-    for (size_t i = 0; i < n_genes; i++) {
-        genes[i] = i;
-    }
-    gsl_ran_shuffle(random, genes, n_genes, sizeof(size_t));
-    for (size_t i = 0; i < n_genes; i++) {
-        
-        size_t new_pathway = gsl_rng_uniform_int(random, n_pathways);
-        state.update_pathway_membership(genes[i], new_pathway);
-    }
+    // randomly assign genes to pathways
+    state.sample_from_prior(random);
     
     for (size_t m = 0; m < n_patients; m++) {
         vector<size_t> r(n_pathways);
@@ -280,8 +315,92 @@ void test_caching(gsl_rng *random, gsl_matrix &obs, vector<size_t> row_sum)
     cout << "Cache test passed!" << endl;
 }
 
+void test_local_caching(gsl_rng *random, gsl_matrix &obs, vector<size_t> row_sum)
+{
+    size_t n_genes = obs.size2;
+    size_t n_drivers = 10;
+    LinearProgressionState state(obs, row_sum, n_genes, n_drivers, true);
+    
+    // randomly assign genes to pathways
+    state.sample_from_prior(random);
+    
+    LinearProgressionParameters params(gsl_ran_flat(random, 0, 0.3), gsl_ran_flat(random, 0, 0.3));
+
+    // compute using cache and compare to without caching
+    // test that the same values are attained and less time is required
+    
+    auto start = std::chrono::high_resolution_clock::now();
+    double log_lik_w_cache = compute_pathway_likelihood(obs, row_sum, state, params, true);
+    auto end1 = std::chrono::high_resolution_clock::now();
+    double log_lik_w_o_cache = compute_pathway_likelihood(obs, row_sum, state, params, false);
+    auto end2 = std::chrono::high_resolution_clock::now();
+    if (abs(log_lik_w_cache - log_lik_w_o_cache) > 1e-6) {
+        cerr << "Error: cache test 2 failed!" << endl;
+        exit(-1);
+    }
+    std::chrono::duration<double> elapsed1 = end1 - start;
+    std::chrono::duration<double> elapsed2 = end2 - end1;
+    cout << "With cache time elapsed: " << elapsed1.count() << endl;
+    cout << "Without cache time elapsed: " << elapsed2.count() << endl;
+    cout << "Cache test 2 passed!" << endl;
+}
+
+void test_global_caching(gsl_rng *random, gsl_matrix &obs, vector<size_t> row_sum)
+{
+    size_t n_genes = obs.size2;
+    size_t n_drivers = 10;
+    size_t n_particles = 100;
+    unsigned long seed = gsl_rng_get(random);
+    gsl_rng *random1 = generate_random_object(seed);
+    gsl_rng *random2 = generate_random_object(seed);
+    LinearProgressionModel model(n_genes, n_drivers, 10, 1, obs, row_sum, 0.2, true, MoveType::MH);
+    LinearProgressionModelCache model_cache(n_genes, n_drivers, 10, 1, obs, row_sum, 0.2, true, MoveType::MH);
+    LinearProgressionParameters params(gsl_ran_flat(random, 0, 0.3), gsl_ran_flat(random, 0, 0.3));
+    double logw = 0.0, logw_cache = 0.0;
+    std::chrono::duration<double> elapsed_cache1, elapsed_cache2;
+    for (size_t i = 0; i < n_particles; i++) {
+        auto start1 = std::chrono::high_resolution_clock::now();
+        model.propose_initial(random1, logw, params);
+        auto end1 = std::chrono::high_resolution_clock::now();
+        auto start2 = std::chrono::high_resolution_clock::now();
+        model_cache.propose_initial(random2, logw_cache, params);
+        auto end2 = std::chrono::high_resolution_clock::now();
+        elapsed_cache1 += (end1 - start1);
+        elapsed_cache2 += (end2 - start2);
+        if (abs(logw - logw_cache) > 1e-6) {
+            cerr << "Error: cache version is not correctly implemented." << endl;
+            exit(-1);
+        }
+    }
+    cout << "With local caching time elapsed: " << elapsed_cache1.count() << endl;
+    cout << "With global caching time elapsed: " << elapsed_cache2.count() << endl;
+    cout << "Cache test 3 passed!" << endl;
+}
+
+void test_openmp()
+{
+    omp_set_num_threads(4);
+#pragma omp parallel
+    {
+        int ID = omp_get_thread_num();
+        printf("%i\n", ID);
+    }
+}
+
+void test_map()
+{
+    unordered_map<size_t, unordered_map<size_t, double>> f;
+    f[1][2] = 0.1;
+    f[2][3] = 0.2;
+    f[1][2] = 0.3;
+    cout << f[1][2] << ", " << f[2][3] << endl;
+}
+
 int main(int argc, char *argv[]) // TODO: take arguments from command line
 {
+    //test_openmp();
+    //test_map();
+
     unsigned long seed;
 
     // model length inference parameters
@@ -313,6 +432,8 @@ int main(int argc, char *argv[]) // TODO: take arguments from command line
     MoveType move_type;
     
     string output_dir;
+    
+    size_t n_threads;
 
     // options
     namespace po = boost::program_options;
@@ -325,25 +446,26 @@ int main(int argc, char *argv[]) // TODO: take arguments from command line
     ("seed,s", po::value< unsigned long >( &seed )->default_value(1), "Random seed.")
     ("infer-len,i", po::value< bool >(&infer_model_len)->default_value(false), "Infer best model length.")
     ("run-pg,r", po::value< bool >(&run_pg)->default_value(true), "Run Particle Gibbs to infer pathways. Default is true. Setting -i true and setting -r false if only goal is to infer the model length.")
-    ("max-len,L", po::value< unsigned int >( &max_model_len ), "Max model length to use for inferring best model length. If -i option is set to true, this value must be provided.")
+    ("max-len,L", po::value< unsigned int >( &max_model_len )->default_value(8), "Max model length to use for inferring best model length. If -i option is set to true, this value must be provided.")
     ("model-len,l", po::value< unsigned int >( &model_len )->default_value(5), "Model length to use for inferring Particle Gibbs. If -i option is set to true, this value will inferred.")
     ("n-mc-samples", po::value< size_t >( &n_mc_samples )->default_value(20), "Number of Monte Carlo sampels for model selection.")
     ("ess", po::value< double >( &ess )->default_value(0.5), "A vlue in [0, 1]. ESS for triggering resampling of SMC sampler for model selection.")
-    ("n-particles", po::value< size_t >( &n_particles )->default_value(100), "Number of SMC samples.")
-    ("n-smc-iter", po::value< size_t >( &n_smc_iter )->default_value(10), "Number of SMC iterations.")
+    ("n-particles", po::value< size_t >( &n_particles )->default_value(200), "Number of SMC samples.")
+    ("n-smc-iter", po::value< size_t >( &n_smc_iter )->default_value(100), "Number of SMC iterations.")
     ("n-mcmc-iter", po::value< size_t >( &n_mcmc_iter )->default_value(5), "Number of MCMC iterations to be used within SMC sampler.")
-    ("n-pmcmc-iter", po::value< size_t >( &n_pmcmc_iter )->default_value(20), "Number of Particle MCMC iterations.")
+    ("n-pmcmc-iter", po::value< size_t >( &n_pmcmc_iter )->default_value(1000), "Number of Particle MCMC iterations.")
     ("n-mh-w-gibbs-iter", po::value< size_t >( &n_mh_w_gibbs_iter )->default_value(10), "Number of MH-within-Gibbs iterations for sampling error probabilities.")
     ("bgp-max", po::value< double >( &bgp_max )->default_value(0.3), "A vlue in (0, 1]. Parameterize uniform prior on the parameters: Uniform[0, bgp-max].")
     ("fbp-max", po::value< double >( &fbp_max )->default_value(0.3), "A vlue in (0, 1]. Parameterize uniform prior on the parameters: Uniform[0, fbp-max].")
     ("swap-prob", po::value< double >( &swap_move_prob )->default_value(0.2), "A vlue in [0, 1]. Indiciate probability for pathway swap move probability.")
     ("move-type", po::value< string >( &move_type_str )->default_value("MH"), "One of {MH, GIBBS}. Invalid specification and default is MH.")
+    ("n-threads,t", po::value< size_t >( &n_threads )->default_value(4), "Number of threads available.")
     ;
 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
     po::notify(vm);
-    
+
     if (vm.count("help")) {
         cout << desc << "\n";
         return 1;
@@ -371,7 +493,7 @@ int main(int argc, char *argv[]) // TODO: take arguments from command line
     if (vm.count("experiment")) {
         // development mode -- data file, if provided, will be ignored
         string sim_data_path = vm["experiment"].as<string>();
-        run_exp(random, sim_data_path, max_model_len, n_mc_samples, n_smc_iter, n_mcmc_iter, n_particles, ess, n_pmcmc_iter, n_mh_w_gibbs_iter, fbp_max, bgp_max, swap_move_prob, move_type);
+        run_exp(random, sim_data_path, max_model_len, n_mc_samples, n_smc_iter, n_mcmc_iter, n_particles, ess, n_pmcmc_iter, n_mh_w_gibbs_iter, fbp_max, bgp_max, swap_move_prob, move_type, n_threads);
     } else {
         string dat_file;
         if (vm.count("data-path")) {
@@ -381,22 +503,24 @@ int main(int argc, char *argv[]) // TODO: take arguments from command line
             cerr << "Data file was not set.\n";
             exit(-1);
         }
-        
+
         // read the data and compute row sum
-        gsl_matrix *obs_matrix = read_data(dat_file);
+        gsl_matrix *obs_matrix = read_data(dat_file, true);
         vector<size_t> row_sum(obs_matrix->size1);
         compute_row_sum(*obs_matrix, row_sum);
 
         test_caching(random, *obs_matrix, row_sum);
+        test_local_caching(random, *obs_matrix, row_sum);
+        test_global_caching(random, *obs_matrix, row_sum);
         
         if (infer_model_len) {
-            model_len = infer_model_length(random, *obs_matrix, row_sum, model_len, n_mc_samples, n_smc_iter, n_mcmc_iter, n_particles, ess, fbp_max, bgp_max, swap_move_prob, move_type, output_dir);
+            model_len = infer_model_length(random, *obs_matrix, row_sum, max_model_len, n_mc_samples, n_smc_iter, n_mcmc_iter, n_particles, ess, fbp_max, bgp_max, swap_move_prob, move_type, output_dir, n_threads);
             cout << "Inferred model length: " << model_len << endl;
         }
 
         if (run_pg) {
             cout << "Running Particle Gibbs with model length: " << model_len << endl;
-            run_particle_gibbs(random, *obs_matrix, row_sum, model_len, n_smc_iter, n_mcmc_iter, n_particles, n_pmcmc_iter, n_mh_w_gibbs_iter, fbp_max, bgp_max, swap_move_prob, move_type, output_dir);
+            run_particle_gibbs(random, *obs_matrix, row_sum, model_len, n_smc_iter, n_mcmc_iter, n_particles, n_pmcmc_iter, n_mh_w_gibbs_iter, fbp_max, bgp_max, swap_move_prob, move_type, output_dir, n_threads);
         }
     }
 

@@ -14,7 +14,7 @@
 #include "data_util.hpp"
 
 // returns double array of length n_patients*n_gene
-gsl_matrix *read_data(string file_name)
+gsl_matrix *read_data(string file_name, bool header)
 {
     size_t n_patients = 0;
     size_t n_genes = 0;
@@ -29,6 +29,12 @@ gsl_matrix *read_data(string file_name)
 
     vector<string> results;
     vector<double> dat;
+    
+    if (header) {
+        // skip the first line
+        getline(dat_file, line);
+    }
+    
     while ( getline (dat_file, line) )
     {
         boost::split(results, line, boost::is_any_of(","));
@@ -157,8 +163,8 @@ void write_model_selection_output_to_file(string file, const vector<double> &mea
     }
 }
 void write_pg_output(string path,
-                     vector<ParticleGenealogy<LinearProgressionState> *> &states,
-                     vector<LinearProgressionParameters *> &params)
+                     vector<shared_ptr<ParticleGenealogy<LinearProgressionState> > > &states,
+                     vector<shared_ptr<LinearProgressionParameters> > &params)
 {
     if (states.size() != params.size()) {
         cerr << "Error: vectors states and params are of different lengths. State vector size: " << states.size() << ", parameter vector size: " << params.size() << endl;

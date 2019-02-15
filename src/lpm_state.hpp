@@ -22,9 +22,9 @@ using namespace std;
 class LinearProgressionState
 {
     vector<size_t> pathway_membership; // map from gene id to pathway membership (essentially)
-    vector<unordered_set<size_t>> pathways; // pathway idx to set of genes
+    vector<unordered_set<size_t> > pathways; // pathway idx to set of genes
 
-    vector<vector<size_t> > _cache_counts;
+    vector<vector<size_t> > _cache_counts; // MxK
 
     size_t n_genes = 0;
     size_t num_driver_pathways = 0;
@@ -58,13 +58,12 @@ public:
 
     inline void set_num_driver_pathways(size_t K) { this->num_driver_pathways = K; }
     inline void set_log_lik(double log_lik) { this->log_lik = log_lik; }
-    
-    
+
     LinearProgressionState *increase_num_drivers(gsl_rng *random);
     string to_string() const;
-    
+
     const static size_t PASSENGER_PATHWAY_IDX = 0;
-    ~LinearProgressionState();    
+    ~LinearProgressionState();
 };
 
 #endif /* lpm_state_hpp */
