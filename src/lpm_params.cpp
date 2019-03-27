@@ -13,27 +13,6 @@ fbp(fbp), bgp(bgp)
     
 }
 
-//LinearProgressionParameters::LinearProgressionParameters(double fbp, double bgp, vector<size_t> &stages) :
-//LinearProgressionParameters(fbp, bgp)
-//{
-//    this->stages = &stages;
-//}
-//
-//bool LinearProgressionParameters::has_patient_stages() const
-//{
-//    return (this->stages != 0);
-//}
-
-//const vector<size_t> &LinearProgressionParameters::get_patient_progression_stages() const
-//{
-//    return stages;
-//}
-
-//void LinearProgressionParameters::set_patient_progression_stages(vector<size_t> &stages)
-//{
-//    this->stages = &stages;
-//}
-
 double LinearProgressionParameters::get_fbp() const
 {
     return fbp;

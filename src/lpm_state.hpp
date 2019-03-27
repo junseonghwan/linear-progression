@@ -24,7 +24,9 @@ class LinearProgressionState
     vector<size_t> pathway_membership; // map from gene id to pathway membership (essentially)
     vector<unordered_set<size_t> > pathways; // pathway idx to set of genes
 
-    vector<vector<size_t> > _cache_counts; // MxK
+    // MxK
+    // element (i, j): number of mutations for patient in pathway j for the current state
+    vector<vector<size_t> > _cache_counts;
 
     size_t n_genes = 0;
     size_t num_driver_pathways = 0;

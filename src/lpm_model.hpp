@@ -35,22 +35,31 @@ class LinearProgressionModel : public ProblemSpecification<LinearProgressionStat
     double pathway_swap_prob;
     bool allocate_passenger_pathway = false;
     MoveType move_type;
-    
+
     LinearProgressionState *initial_state = 0;
-    
+
     // helper variables to limit the number of times new vector/array are allocated
     unsigned int *pathway_indices;
 
     vector<double> move_log_liks;
     vector<double> move_probs;
-    
+
     vector<double> gibbs_log_liks;
     vector<double> gibbs_probs;
+    
+    // cache likelihood calculation
+    double cached_bgp, cached_fbp;
+    unordered_map<size_t, unordered_map<size_t, double> > _dict_active_probs;
+    unordered_map<size_t, unordered_map<size_t, double> > _dict_inactive_probs;
+    void initialize_likelihood_table(LinearProgressionParameters &params);
+    bool update_cache(LinearProgressionParameters &params);
+    //void construct_likelihood_tables(LinearProgressionParameters &params);
     
     double get_temperature(size_t t);
     void swap_pathway_move(gsl_rng *random, LinearProgressionState &state, LinearProgressionParameters &params);
     void mh_kernel(gsl_rng *random, int t, LinearProgressionState &curr, LinearProgressionParameters &params);
     void gibbs_kernel(gsl_rng *random, int t, LinearProgressionState &curr, LinearProgressionParameters &params);
+    
 public:
 
     LinearProgressionModel(size_t num_genes,

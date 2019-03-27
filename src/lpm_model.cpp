@@ -50,6 +50,7 @@ move_type(move_type)
 
 void LinearProgressionModel::set_initial_state(gsl_rng *random, LinearProgressionState *prev_state)
 {
+    // sample a state by placing one gene at random from initial state to a new pathway
     this->initial_state = prev_state->increase_num_drivers(random);
 }
 
@@ -63,8 +64,43 @@ double LinearProgressionModel::get_temperature(size_t t)
     return (double)t/num_smc_iter;
 }
 
+bool LinearProgressionModel::update_cache(LinearProgressionParameters &params)
+{
+    if (params.get_fbp() != cached_fbp || params.get_bgp() != cached_bgp) {
+        return true;
+    }
+    return false;
+}
+
+void LinearProgressionModel::initialize_likelihood_table(LinearProgressionParameters &params)
+{
+    _dict_active_probs.clear();
+    _dict_inactive_probs.clear();
+    cached_fbp = params.get_fbp();
+    cached_bgp = params.get_bgp();
+}
+
+//void LinearProgressionModel::construct_likelihood_tables(LinearProgressionParameters &params)
+//{
+//    cached_fbp = params.get_fbp();
+//    cached_bgp = params.get_bgp();
+//
+//    // construct likelihood table for look-up
+//    size_t max = num_genes - num_driver_pathways + 1;
+//    for (size_t pathway_size = 1; pathway_size < max; pathway_size++) {
+//        for (size_t n_mutations = 0; n_mutations <= pathway_size; n_mutations++) {
+//            _dict_active_probs[pathway_size][n_mutations] = compute_log_lik_active(n_mutations, pathway_size, cached_bgp, cached_fbp);
+//            _dict_inactive_probs[pathway_size][n_mutations] = compute_log_lik_inactive(n_mutations, pathway_size, cached_bgp);
+//        }
+//    }
+//}
+
 shared_ptr<LinearProgressionState> LinearProgressionModel::propose_initial(gsl_rng *random, double &log_w, LinearProgressionParameters &params)
 {
+    if (update_cache(params)) {
+        initialize_likelihood_table(params);
+    }
+    
     if (initial_state == 0) {
         if (num_smc_iter == 1) {
             // basically importance sampling -- sample from prior
@@ -73,14 +109,15 @@ shared_ptr<LinearProgressionState> LinearProgressionModel::propose_initial(gsl_r
         }
 
         LinearProgressionState state(obs, row_sum, num_genes, num_driver_pathways, allocate_passenger_pathway);
-        state.sample_from_prior(random);
-        double log_lik = compute_pathway_likelihood(obs, row_sum, state, params, true);
+        //state.sample_from_prior(random);
+        state.sample_min_valid_pathway(random);
+        //double log_lik = compute_pathway_likelihood(obs, row_sum, state, params, _dict_active_probs, _dict_inactive_probs);
+        double log_lik = compute_pathway_likelihood(obs, row_sum, state, params);
         state.set_log_lik(log_lik);
         return propose_next(random, 0, state, log_w, params);
     } else {
-        // sample a state by placing one gene at random from initial state to a new pathway
-        // copy state
-        double log_lik = compute_pathway_likelihood(obs, row_sum, *initial_state, params, true);
+        //double log_lik = compute_pathway_likelihood(obs, row_sum, *initial_state, params, _dict_active_probs, _dict_inactive_probs);
+        double log_lik = compute_pathway_likelihood(obs, row_sum, *initial_state, params);
         initial_state->set_log_lik(log_lik);
         return propose_next(random, 0, *initial_state, log_w, params);
     }
@@ -88,6 +125,11 @@ shared_ptr<LinearProgressionState> LinearProgressionModel::propose_initial(gsl_r
 
 shared_ptr<LinearProgressionState>LinearProgressionModel::propose_next(gsl_rng *random, int t, const LinearProgressionState &curr, double &log_w, LinearProgressionParameters &params)
 {
+    if (update_cache(params)) {
+        cerr << "Error: parameters changed in the middle of SMC run!" << endl;
+        exit(-1);
+    }
+    
     double temperature_diff = get_temperature(t+1) - get_temperature(t);
     log_w = temperature_diff * curr.get_log_lik();
 
@@ -109,13 +151,17 @@ void LinearProgressionModel::swap_pathway_move(gsl_rng *random, LinearProgressio
 {
     double prev_log_lik = state.get_log_lik();
     move_log_liks[0] = prev_log_lik;
+    if (prev_log_lik == DOUBLE_NEG_INF) {
+        cout << "neg inf" << endl;
+    }
     
     // shuffle indices: swap the first two pathways
     gsl_ran_shuffle(random, pathway_indices, num_driver_pathways, sizeof(unsigned int));
     unsigned int pathway1 = pathway_indices[0];
     unsigned int pathway2 = pathway_indices[1];
     state.swap_pathways(pathway1, pathway2);
-    move_log_liks[1] = compute_pathway_likelihood(obs, row_sum, state, params, true);
+    //move_log_liks[1] = compute_pathway_likelihood(obs, row_sum, state, params, _dict_active_probs, _dict_inactive_probs);
+    move_log_liks[1] = compute_pathway_likelihood(obs, row_sum, state, params);
     normalize(move_log_liks, move_probs);
     size_t k = multinomial(random, move_probs);
     if (k == 0) {
@@ -143,7 +189,8 @@ void LinearProgressionModel::mh_kernel(gsl_rng *random, int t, LinearProgression
         size_t old_pathway = state.get_pathway_membership_of(gene_idx);
         size_t new_pathway = gsl_rng_uniform_int(random, state.get_num_pathways());
         state.update_pathway_membership(gene_idx, new_pathway);
-        double new_log_lik = compute_pathway_likelihood(obs, row_sum, state, params, true);
+        //double new_log_lik = compute_pathway_likelihood(obs, row_sum, state, params, _dict_active_probs, _dict_inactive_probs);
+        double new_log_lik = compute_pathway_likelihood(obs, row_sum, state, params);
         double log_u = log(gsl_ran_flat(random, 0.0, 1.0));
         if (log_u < (new_log_lik - prev_log_lik)) {
             // accept
@@ -175,7 +222,8 @@ void LinearProgressionModel::gibbs_kernel(gsl_rng *random, int t, LinearProgress
                 gibbs_log_liks[k] = prev_log_lik;
             }
             state.update_pathway_membership(gene_idx, k);
-            gibbs_log_liks[k] = compute_pathway_likelihood(obs, row_sum, state, params, true);
+            //gibbs_log_liks[k] = compute_pathway_likelihood(obs, row_sum, state, params, _dict_active_probs, _dict_inactive_probs);
+            gibbs_log_liks[k] = compute_pathway_likelihood(obs, row_sum, state, params);
         }
         normalize(gibbs_log_liks, gibbs_probs);
         size_t new_pathway = multinomial(random, gibbs_probs);
