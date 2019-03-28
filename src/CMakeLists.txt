@@ -1,7 +1,11 @@
 include_directories(/usr/local/include/ ${OPENMP_CXX_INCLUDE_DIRS})
 
 file( GLOB SRCS *.cpp *.hpp)
-add_executable(lpm ${SRCS}) # create the executable file
+
+# create executable file
+add_executable(lpm ${SRCS})
+# build as library
+add_library(lpm_lib SHARED ${SRCS})
 
 find_package (PkgConfig REQUIRED)
 find_package (GSL REQUIRED)
@@ -17,3 +21,4 @@ if (OPENMP_FOUND)
 endif()
 
 target_link_libraries(lpm GSL::gsl GSL::gslcblas /usr/local/bin/libSPF.a /usr/local/lib/libboost_system.a /usr/local/lib/libboost_filesystem.a /usr/local/lib/libboost_program_options.a OpenMP::OpenMP_CXX)
+target_link_libraries(lpm_lib GSL::gsl GSL::gslcblas /usr/local/bin/libSPF.a /usr/local/lib/libboost_system.a /usr/local/lib/libboost_filesystem.a /usr/local/lib/libboost_program_options.a OpenMP::OpenMP_CXX)

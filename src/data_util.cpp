@@ -300,6 +300,8 @@ void write_pg_output(string path,
 
 void write_pg_output(string path,
                      vector<shared_ptr<ParticleGenealogy<LinearProgressionState> > > &states,
+                     vector<double> &log_marginal,
+                     vector<shared_ptr<LinearProgressionParameters> > &params,
                      LPMParamProposal &pg_proposal)
 {
     if (states.size() == 0) {
@@ -313,11 +315,14 @@ void write_pg_output(string path,
 
     string state_file_path = path + "/states.csv";
     string params_file_path = path + "/params.csv";
+    string log_marginal_file_path = path + "/log_marginal.csv";
 
     ofstream state_file;
     ofstream params_file;
+    ofstream log_marginal_file;
     state_file.open(state_file_path, ios::out);
     params_file.open(params_file_path, ios::out);
+    log_marginal_file.open(log_marginal_file_path, ios::out);
     if (!state_file.is_open()) {
         cerr << "Error: cannot open " << state_file_path << endl;
         exit(-1);
@@ -326,14 +331,19 @@ void write_pg_output(string path,
         cerr << "Error: cannot open " << params_file_path << endl;
         exit(-1);
     }
-    
-    // write states to file
+    if (!log_marginal_file.is_open()) {
+        cerr << "Error: cannot open " << log_marginal_file_path << endl;
+        exit(-1);
+    }
+
+    // write states
     size_t len = states[0]->size();
     for (size_t i = 0; i < states.size(); i++) {
         state_file << states[i]->get_state_at(len-1).to_string() << endl;
     }
     state_file.close();
 
+    // write all parameters
     const vector<double> &bgps = pg_proposal.get_bgps();
     const vector<double> &fbps = pg_proposal.get_fbps();
     params_file << "FBP, BGP" << endl;
@@ -341,4 +351,30 @@ void write_pg_output(string path,
         params_file << bgps[i] << ", " << fbps[i] << endl;
     }
     params_file.close();
+    
+    // write log marginals
+    log_marginal_file << "FBP, BGP, LogMarginal" << endl;
+    for (size_t i = 0; i < log_marginal.size(); i++) {
+        log_marginal_file << params[i].get()->get_fbp() << ", " << params[i].get()->get_bgp() << ", " << log_marginal[i] << endl;
+    }
+    log_marginal_file.close();
 }
+
+void compute_row_sum(gsl_matrix &obs, vector<size_t> &row_sum)
+{
+    // compute the row sum for obs matrix
+    size_t M = obs.size1;
+    size_t N = obs.size2;
+    if (row_sum.size() != M) {
+        cerr << "Error: dimension for row_sum: " << row_sum.size() << " does not num rows of obs: " << M << endl;
+        exit(-1);
+    }
+    for (size_t m = 0; m < M; m++) {
+        size_t sum_m = 0;
+        for (size_t n = 0; n < N; n++) {
+            sum_m += (size_t)gsl_matrix_get(&obs, m, n);
+        }
+        row_sum[m] = sum_m;
+    }
+}
+

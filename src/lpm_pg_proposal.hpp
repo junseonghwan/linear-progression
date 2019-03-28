@@ -28,7 +28,7 @@ class LPMParamProposal : public PGProposal<LinearProgressionState, LinearProgres
     
     void sample_separately(gsl_rng *random, const LinearProgressionState &state, LinearProgressionParameters &new_param, vector<vector<size_t>> &R);
     void sample_together(gsl_rng *random, const LinearProgressionState &state, LinearProgressionParameters &new_param, vector<vector<size_t>> &R);
-    
+
     // store the parameters
     vector<double> bgps;
     vector<double> fbps;

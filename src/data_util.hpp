@@ -38,6 +38,9 @@ void write_pg_output(string file,
                      vector<shared_ptr<LinearProgressionParameters> > &params);
 void write_pg_output(string path,
                      vector<shared_ptr<ParticleGenealogy<LinearProgressionState> > > &states,
+                     vector<double> &log_marginal,
+                     vector<shared_ptr<LinearProgressionParameters> > &params,
                      LPMParamProposal &pg_proposal);
+void compute_row_sum(gsl_matrix &obs, vector<size_t> &row_sum);
 
 #endif /* data_util_hpp */

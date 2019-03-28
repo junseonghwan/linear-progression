@@ -3,7 +3,7 @@ project(lpm)
 cmake_minimum_required (VERSION 3.12)
 
 set(CMAKE_CXX_FLAGS "-std=c++11")
-set( CMAKE_C_FLAGS "-Wall -g" )
+set(CMAKE_C_FLAGS "-Wall -g" )
 set(OPENMP_CXX_INCLUDE_DIRS /usr/local/opt/libomp/include)
 if (APPLE AND XCODE)
     set(OpenMP_C_FLAGS "-Xpreprocessor -fopenmp -I/usr/local/opt/libomp/include" CACHE INTERNAL "OpenMP flags for Xcode toolchain.")
