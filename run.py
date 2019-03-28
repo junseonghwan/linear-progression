@@ -2,7 +2,7 @@ import numpy as np
 import ctypes
 import os
 
-lpm_lib = np.ctypeslib.load_library("liblpm_lib.dylib", "build/src/")
+lpm_lib = np.ctypeslib.load_library("liblpm_lib.dylib", "bin/")
 
 curr_dir = os.getcwd()
 data_path = curr_dir + "/data/raphael/25genes/error0.01/rep1/"
