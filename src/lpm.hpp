@@ -35,6 +35,35 @@ extern "C" {
                     double bgp,
                     unsigned int *states,
                     double *log_weights);
+
+    // let k = model_len
+    // let \theta_i = (fbp_i, bgp_i) be a sample from prior p(\theta)
+    // run SMC to generate pathway samples {X_j} given \theta_i and k
+    // compute: \sum_i (\sum_j p(y | X_j, \theta_i, k) p(X_j | k))
+    // this is to approximate f(k) = \int_{\theta} \sum_x  p(y | x, \theta, k) p(x | k) p(\theta) d\theta
+    // returns log(\hat{f}(k))
+    double model_selection(long seed,
+                           const char *dat_file,
+                           //const char *output_file,
+                           unsigned int model_len,
+                           unsigned int n_mc_samples,
+                           unsigned int n_particles,
+                           unsigned int n_smc_iter,
+                           unsigned int n_kernel_iter,
+                           bool has_passenger,
+                           double swap_prob,
+                           const double *fbps,
+                           const double *bgps,
+                           unsigned int n_threads,
+                           double *ret);
+
+    double compute_likelihood(const char *dat_file,
+                              unsigned int *pathway,
+                              unsigned int model_len,
+                              unsigned int n_genes,
+                              bool has_passenger,
+                              double fbp,
+                              double bgp);
 }
 
 #endif /* lpm_h */
