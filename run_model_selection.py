@@ -1,11 +1,16 @@
 import numpy as np 
 import ctypes
 import os
+import platform
+
+if platform.system() == "Linux":
+    lpm_lib = np.ctypeslib.load_library("liblpm_lib.so", "bin/")    
+elif platform.system() == "Darwin":
+    lpm_lib = np.ctypeslib.load_library("liblpm_lib.dylib", "bin/")
+
+curr_dir = os.getcwd()
 
 np.random.seed(123)
-
-lpm_lib = np.ctypeslib.load_library("liblpm_lib.dylib", "bin/")
-curr_dir = os.getcwd()
 
 seed = 1
 n_mc_samples = 32

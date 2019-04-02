@@ -2,10 +2,12 @@ import numpy as np
 from scipy.special import logsumexp
 import ctypes
 import os
+import platform
 
-np.random.seed(111)
-
-lpm_lib = np.ctypeslib.load_library("liblpm_lib.dylib", "bin/")
+if platform.system() == "Linux":
+    lpm_lib = np.ctypeslib.load_library("liblpm_lib.so", "bin/")    
+elif platform.system() == "Darwin":
+    lpm_lib = np.ctypeslib.load_library("liblpm_lib.dylib", "bin/")
 
 lpm_lib.compute_likelihood.restype = ctypes.c_double
 
@@ -16,6 +18,7 @@ lpm_lib.run_smc.argtypes = [ctypes.c_long, ctypes.c_char_p, ctypes.c_uint, ctype
                             ctypes.POINTER(ctypes.c_double)]
 
 
+np.random.seed(111)
 
 curr_dir = os.getcwd()
 
