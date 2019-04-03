@@ -27,6 +27,7 @@ gsl_matrix *read_data(string file_name, bool header = false);
 gsl_matrix *read_csv(string file_name, bool header);
 vector<size_t> *read_stages(string file_name);
 vector<size_t> *read_ground_truth(string path_name);
+unsigned int read_ground_truth_pathway_from_matrix(string file_name, unsigned int *ret); // returns number of pathways
 void read_error_params(string path_name, double &fbp, double &bgp);
 size_t read_true_model_length(string path_name);
 void write_model_selection_output_to_file(string path, size_t n_patients,

@@ -8,6 +8,8 @@
 #ifndef lpm_h
 #define lpm_h
 
+#include <gsl/gsl_matrix.h>
+
 extern "C" {
     void run_pg(long seed,
                 const char *dat_file,
@@ -55,7 +57,8 @@ extern "C" {
                            const double *fbps,
                            const double *bgps,
                            unsigned int n_threads,
-                           double *ret);
+                           double *ret_sum,
+                           double *ret_smc);
 
     double compute_likelihood(const char *dat_file,
                               unsigned int *pathway,
@@ -64,6 +67,14 @@ extern "C" {
                               bool has_passenger,
                               double fbp,
                               double bgp);
+    
+    double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
+                                          unsigned int *pathway,
+                                          unsigned int model_len,
+                                          unsigned int n_genes,
+                                          bool has_passenger,
+                                          double fbp,
+                                          double bgp);
 }
 
 #endif /* lpm_h */

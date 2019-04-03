@@ -35,7 +35,7 @@ gsl_matrix *read_data(string file_name, bool header)
 {
     size_t n_patients = 0;
     size_t n_genes = 0;
-    
+
     string line;
     ifstream dat_file (file_name);
     if (!dat_file.is_open())
@@ -176,6 +176,31 @@ vector<size_t> *read_ground_truth(string file_name)
     dat_file.close();
     
     return gt;
+}
+
+unsigned int read_ground_truth_pathway_from_matrix(string file_name, unsigned int *ret)
+{
+    ifstream dat_file (file_name);
+    string line;
+    if (!dat_file.is_open())
+    {
+        cerr << "Could not open the file: " << file_name << endl;
+        exit(-1);
+    }
+
+    size_t gene_idx;
+    size_t pathway_idx;
+
+    gsl_matrix *pathway_matrix = read_csv(file_name, false);
+    for (gene_idx = 0; gene_idx < pathway_matrix->size1; gene_idx++) {
+        for (pathway_idx = 0; pathway_idx < pathway_matrix->size1; pathway_idx++) {
+            if (gsl_matrix_get(pathway_matrix, gene_idx, pathway_idx) == 1) {
+                ret[gene_idx] = pathway_idx;
+                break;
+            }
+        }
+    }
+    return pathway_matrix->size2;
 }
 
 void read_error_params(string path_name, double &fbp, double &bgp)

@@ -666,80 +666,81 @@
 
 using namespace std;
 
-int main()
-{
-    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/raphael/25genes/error0.05/rep1/pg/";
-    const char* input_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/raphael/25genes/error0.05/rep1/matrix.csv";
-    
-    boost::filesystem::path dir(output_path);
-    if (!boost::filesystem::exists(dir)) {
-        if (boost::filesystem::create_directory(dir))
-            std::cout << dir << "....Successfully Created !" << std::endl;
-    }
-    
-//    size_t n_particles = 100;
-//    size_t n_genes = 25;
-//    size_t model_len = 5;
-    
-//    run_pg(1, input_path, output_path, 5, 3, n_particles, 25, 1, 20, false, 0.2, 0, 0.2);
-//    unsigned int *states = new unsigned int[n_particles*n_genes];
-//    double *log_weights = new double[n_particles];
-//    run_smc(1, input_path, 5, n_particles, 25, 1, false, 0.2, 0.01, 0.01, states, log_weights);
-//    for (size_t i = 0; i < n_particles; i++) {
-//        cout << "(";
-//        for (size_t j = 0; j < n_genes; j++) {
-//            cout << states[i*n_genes + j] << " ";
+//int main()
+//{
+//    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/raphael/25genes/error0.05/rep1/pg/";
+//    const char* input_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/raphael/25genes/error0.05/rep1/matrix.csv";
+//    
+//    boost::filesystem::path dir(output_path);
+//    if (!boost::filesystem::exists(dir)) {
+//        if (boost::filesystem::create_directory(dir))
+//            std::cout << dir << "....Successfully Created !" << std::endl;
+//    }
+//    
+////    size_t n_particles = 100;
+////    size_t n_genes = 25;
+////    size_t model_len = 5;
+//    
+////    run_pg(1, input_path, output_path, 5, 3, n_particles, 25, 1, 20, false, 0.2, 0, 0.2);
+////    unsigned int *states = new unsigned int[n_particles*n_genes];
+////    double *log_weights = new double[n_particles];
+////    run_smc(1, input_path, 5, n_particles, 25, 1, false, 0.2, 0.01, 0.01, states, log_weights);
+////    for (size_t i = 0; i < n_particles; i++) {
+////        cout << "(";
+////        for (size_t j = 0; j < n_genes; j++) {
+////            cout << states[i*n_genes + j] << " ";
+////        }
+////        cout << "), " << log_weights[i] <<  endl;
+////    }
+//
+////    size_t n_mc_samples = 50;
+////    size_t n_threads = 8;
+////    double *fbps = new double[n_mc_samples];
+////    double *bgps = new double[n_mc_samples];
+////    gsl_rng *random = generate_random_object(132);
+////    for (size_t i = 0; i < n_mc_samples; i++) {
+////        bgps[i] = gsl_ran_flat(random, 0.0, 0.1);
+////        fbps[i] = bgps[i];
+////    }
+////    //double ret = model_selection(1, input_path, 0, model_len, n_mc_samples, n_particles, n_genes, 1, false, 0.2, fbps, bgps, n_threads);
+////    double *log_marginals = new double[n_mc_samples];
+////    double ret = model_selection(1, input_path, model_len, n_mc_samples, n_particles, n_genes, 1, false, 0.2, fbps, bgps, n_threads, log_marginals);
+////    cout << ret << endl;
+////    for (size_t i = 0; i < n_mc_samples; i++) {
+////        cout << bgps[i] << ", " << log_marginals[i] << endl;
+////    }
+//
+//    // path to files: data
+//    // ground truth: pathway, patient stages, params, model length used for generating the data
+//    string ground_truth_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/raphael/25genes/error0.05/rep1/generative_mem_mat.csv";
+//    
+//    // read the data
+//    gsl_matrix *obs_matrix = read_data(input_path, false);
+//    size_t n_patients = obs_matrix->size1;
+//    size_t n_genes = obs_matrix->size2;
+//    
+//    // compute the row sum
+//    vector<size_t> row_sum(n_patients);
+//    compute_row_sum(*obs_matrix, row_sum);
+//    
+//    // read ground truth model length
+//    gsl_matrix *pathway_membership_matrix = read_data(ground_truth_file);
+//    size_t true_model_length = pathway_membership_matrix->size2;
+//    
+//    // read the ground truth pathway
+//    unsigned int *pathway_membership = new unsigned int[n_genes];
+//    for (size_t g = 0; g < pathway_membership_matrix->size1; g++) {
+//        for (size_t k = 0; k < pathway_membership_matrix->size2; k++) {
+//            if (gsl_matrix_get(pathway_membership_matrix, g, k) == 1) {
+//                pathway_membership[g] = k;
+//                break;
+//            }
 //        }
-//        cout << "), " << log_weights[i] <<  endl;
 //    }
+//    
+//    double log_lik = compute_likelihood(input_path, pathway_membership, true_model_length, n_genes, false, 0.05, 0.05);
+//    cout << "log lik: " << log_lik << endl;
+//
+//    return 0;
+//}
 
-//    size_t n_mc_samples = 50;
-//    size_t n_threads = 8;
-//    double *fbps = new double[n_mc_samples];
-//    double *bgps = new double[n_mc_samples];
-//    gsl_rng *random = generate_random_object(132);
-//    for (size_t i = 0; i < n_mc_samples; i++) {
-//        bgps[i] = gsl_ran_flat(random, 0.0, 0.1);
-//        fbps[i] = bgps[i];
-//    }
-//    //double ret = model_selection(1, input_path, 0, model_len, n_mc_samples, n_particles, n_genes, 1, false, 0.2, fbps, bgps, n_threads);
-//    double *log_marginals = new double[n_mc_samples];
-//    double ret = model_selection(1, input_path, model_len, n_mc_samples, n_particles, n_genes, 1, false, 0.2, fbps, bgps, n_threads, log_marginals);
-//    cout << ret << endl;
-//    for (size_t i = 0; i < n_mc_samples; i++) {
-//        cout << bgps[i] << ", " << log_marginals[i] << endl;
-//    }
-
-    // path to files: data
-    // ground truth: pathway, patient stages, params, model length used for generating the data
-    string ground_truth_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/raphael/25genes/error0.05/rep1/generative_mem_mat.csv";
-    
-    // read the data
-    gsl_matrix *obs_matrix = read_data(input_path, false);
-    size_t n_patients = obs_matrix->size1;
-    size_t n_genes = obs_matrix->size2;
-    
-    // compute the row sum
-    vector<size_t> row_sum(n_patients);
-    compute_row_sum(*obs_matrix, row_sum);
-    
-    // read ground truth model length
-    gsl_matrix *pathway_membership_matrix = read_data(ground_truth_file);
-    size_t true_model_length = pathway_membership_matrix->size2;
-    
-    // read the ground truth pathway
-    unsigned int *pathway_membership = new unsigned int[n_genes];
-    for (size_t g = 0; g < pathway_membership_matrix->size1; g++) {
-        for (size_t k = 0; k < pathway_membership_matrix->size2; k++) {
-            if (gsl_matrix_get(pathway_membership_matrix, g, k) == 1) {
-                pathway_membership[g] = k;
-                break;
-            }
-        }
-    }
-    
-    double log_lik = compute_likelihood(input_path, pathway_membership, true_model_length, n_genes, false, 0.05, 0.05);
-    cout << "log lik: " << log_lik << endl;
-
-    return 0;
-}

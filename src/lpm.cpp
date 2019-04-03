@@ -237,7 +237,8 @@ double model_selection(long seed,
                        const double *fbps,
                        const double *bgps,
                        unsigned int n_threads,
-                       double *ret)
+                       double *ret_sum,
+                       double *ret_smc)
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
@@ -291,6 +292,7 @@ double model_selection(long seed,
     }
     
     vector<double> log_marginals(n_mc_samples);
+    vector<double> smc_log_marginals(n_mc_samples);
     auto start = std::chrono::high_resolution_clock::now();
     
     printf("n_unique_states, fbp, bgp, log_marginal\n");
@@ -317,6 +319,11 @@ double model_selection(long seed,
 
         // run SMC
         csmc.initialize(param);
+        
+        // get log marginal estimate from SMC
+        if (ret_smc != 0) {
+            ret_smc[n] = csmc.get_log_marginal_likelihood();
+        }
 
         // enumerate over all particles that was ever generated to approximate \sum_x p(y | x, \theta)
         unordered_set<string> unique_states;
@@ -331,11 +338,11 @@ double model_selection(long seed,
                 }
             }
         }
-        if (ret != 0) {
-            ret[n] = log_marginals[n];
+        if (ret_sum != 0) {
+            ret_sum[n] = log_marginals[n];
         }
 
-        printf("%zd, %f, %f, %f\n", unique_states.size(), fbps[n], bgps[n], log_marginals[n]);
+        printf("%zd, %f, %f, %f, %f\n", unique_states.size(), fbps[n], bgps[n], log_marginals[n], ret_smc[n]);
     }
 }
     auto end = std::chrono::high_resolution_clock::now();
@@ -367,28 +374,38 @@ double compute_likelihood(const char *dat_file,
     
     // load the data
     gsl_matrix *obs_matrix = read_data(dat_file_str, false);
-    size_t n_patients = obs_matrix->size1;
-    
+    return compute_likelihood_from_matrix(obs_matrix, pathway, model_len, n_genes, has_passenger, fbp, bgp);
+}
+
+double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
+                                      unsigned int *pathway,
+                                      unsigned int model_len,
+                                      unsigned int n_genes,
+                                      bool has_passenger,
+                                      double fbp,
+                                      double bgp)
+{
     if (obs_matrix->size2 != n_genes)
     {
         cerr << "Error: Number of genes specified is " << n_genes << ". But the data contains " << obs_matrix->size2 << " genes." << endl;
         exit(-1);
     }
-    
+ 
+    size_t n_patients = obs_matrix->size1;
+
     // compute the row sum for each patient
     vector<size_t> row_sum(n_patients);
     compute_row_sum(*obs_matrix, row_sum);
 
-    // construct state
+    // construct LPState from the pathway
     LinearProgressionState state(*obs_matrix, row_sum, n_genes, model_len, has_passenger);
     for (size_t i = 0; i < n_genes; i++) {
         state.update_pathway_membership(i, pathway[i]);
-        //cout << "gene " << i << " assigned to " << pathway[i] << endl;
     }
-    
+
     // construct params
     LinearProgressionParameters params(fbp, bgp);
-    
+
     double log_lik = compute_pathway_likelihood(*obs_matrix, row_sum, state, params);
     return log_lik;
 }
