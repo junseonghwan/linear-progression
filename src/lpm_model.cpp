@@ -61,7 +61,7 @@ unsigned long LinearProgressionModel::num_iterations()
 
 double LinearProgressionModel::get_temperature(size_t t)
 {
-    return (double)t/num_smc_iter;
+    return (double)(t)/(num_smc_iter-1);
 }
 
 bool LinearProgressionModel::update_cache(LinearProgressionParameters &params)
@@ -100,23 +100,20 @@ shared_ptr<LinearProgressionState> LinearProgressionModel::propose_initial(gsl_r
     if (update_cache(params)) {
         initialize_likelihood_table(params);
     }
-    
-    if (initial_state == 0) {
-        if (num_smc_iter == 1) {
-            // basically importance sampling -- sample from prior
-            shared_ptr<LinearProgressionState> ret(new LinearProgressionState(obs, row_sum, num_genes, num_driver_pathways, allocate_passenger_pathway));
-            return ret;
-        }
 
-        LinearProgressionState state(obs, row_sum, num_genes, num_driver_pathways, allocate_passenger_pathway);
-        //state.sample_from_prior(random);
-        state.sample_min_valid_pathway(random);
-        //double log_lik = compute_pathway_likelihood(obs, row_sum, state, params, _dict_active_probs, _dict_inactive_probs);
-        double log_lik = compute_pathway_likelihood(obs, row_sum, state, params);
-        state.set_log_lik(log_lik);
-        return propose_next(random, 0, state, log_w, params);
+    if (initial_state == 0) {
+        LinearProgressionState *state = new LinearProgressionState(obs, row_sum, num_genes, num_driver_pathways, allocate_passenger_pathway);
+        state->sample_from_prior(random);
+        double log_lik = compute_pathway_likelihood(obs, row_sum, *state, params);
+        state->set_log_lik(log_lik);
+        shared_ptr<LinearProgressionState> ret(state);
+        if (num_smc_iter == 1) {
+            log_w = log_lik;
+        } else {
+            log_w = 0.0;
+        }
+        return ret;
     } else {
-        //double log_lik = compute_pathway_likelihood(obs, row_sum, *initial_state, params, _dict_active_probs, _dict_inactive_probs);
         double log_lik = compute_pathway_likelihood(obs, row_sum, *initial_state, params);
         initial_state->set_log_lik(log_lik);
         return propose_next(random, 0, *initial_state, log_w, params);
@@ -129,8 +126,8 @@ shared_ptr<LinearProgressionState>LinearProgressionModel::propose_next(gsl_rng *
         cerr << "Error: parameters changed in the middle of SMC run!" << endl;
         exit(-1);
     }
-    
-    double temperature_diff = get_temperature(t+1) - get_temperature(t);
+
+    double temperature_diff = get_temperature(t) - get_temperature(t-1);
     log_w = temperature_diff * curr.get_log_lik();
 
     // make a copy
@@ -138,7 +135,7 @@ shared_ptr<LinearProgressionState>LinearProgressionModel::propose_next(gsl_rng *
     if (move_type == GIBBS) {
         gibbs_kernel(random, t, *new_state, params);
     } else if (move_type == MH){
-        mh_kernel(random, t, *new_state, params);
+        mh_kernel(random, *new_state, params);
     } else {
         cerr << "Error: Invalid move type provided." << endl;
         exit(-1);
@@ -160,18 +157,19 @@ void LinearProgressionModel::swap_pathway_move(gsl_rng *random, LinearProgressio
     unsigned int pathway1 = pathway_indices[0];
     unsigned int pathway2 = pathway_indices[1];
     state.swap_pathways(pathway1, pathway2);
-    //move_log_liks[1] = compute_pathway_likelihood(obs, row_sum, state, params, _dict_active_probs, _dict_inactive_probs);
     move_log_liks[1] = compute_pathway_likelihood(obs, row_sum, state, params);
-    normalize(move_log_liks, move_probs);
-    size_t k = multinomial(random, move_probs);
-    if (k == 0) {
+    vector<double> probs(2);
+    normalize(move_log_liks, probs);
+    unsigned int idx = multinomial(random, probs);
+    if (idx == 1) {
+        state.set_log_lik(move_log_liks[1]);
+    } else {
         // revert
         state.swap_pathways(pathway2, pathway1);
     }
-    state.set_log_lik(move_log_liks[k]);
 }
 
-void LinearProgressionModel::mh_kernel(gsl_rng *random, int t, LinearProgressionState &state, LinearProgressionParameters &params)
+void LinearProgressionModel::mh_kernel(gsl_rng *random, LinearProgressionState &state, LinearProgressionParameters &params)
 {
 
     for (size_t i = 0; i < num_mcmc_iter; i++) {
@@ -188,8 +186,10 @@ void LinearProgressionModel::mh_kernel(gsl_rng *random, int t, LinearProgression
         size_t gene_idx = gsl_rng_uniform_int(random, num_genes);
         size_t old_pathway = state.get_pathway_membership_of(gene_idx);
         size_t new_pathway = gsl_rng_uniform_int(random, state.get_num_pathways());
+        if (old_pathway == new_pathway) {
+            continue;
+        }
         state.update_pathway_membership(gene_idx, new_pathway);
-        //double new_log_lik = compute_pathway_likelihood(obs, row_sum, state, params, _dict_active_probs, _dict_inactive_probs);
         double new_log_lik = compute_pathway_likelihood(obs, row_sum, state, params);
         double log_u = log(gsl_ran_flat(random, 0.0, 1.0));
         if (log_u < (new_log_lik - prev_log_lik)) {

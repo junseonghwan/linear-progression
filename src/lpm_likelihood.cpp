@@ -5,11 +5,20 @@
 //  Created by Seong-Hwan Jun on 2019-01-08.
 //
 
-#include <math.h>
+#include <cmath>
+
+#include <gsl/gsl_sf.h>
 
 #include <spf/numerical_utils.hpp>
 
 #include "lpm_likelihood.hpp"
+
+double log_pathway_prior(unsigned int n_pathways, unsigned int n_genes)
+{
+    double ret = gsl_sf_lnchoose(n_genes - 1, n_pathways - 1);
+    ret += gsl_sf_lnfact(n_genes);
+    return -ret;
+}
 
 double compute_log_lik_active(double n_mutations, double pathway_size, double bgp, double fbp)
 {

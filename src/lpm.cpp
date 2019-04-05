@@ -17,6 +17,7 @@
 
 #include <spf/pg.hpp>
 #include <spf/sampling_utils.hpp>
+#include <spf/smc.hpp>
 #include <spf/csmc.hpp>
 
 #include "data_util.hpp"
@@ -144,19 +145,11 @@ double run_smc(long seed,
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
-    string move_type_str = "MH"; // later, provide GIBBS as an option
     
     // load the data
     gsl_matrix *obs_matrix = read_data(dat_file_str, false);
     size_t n_patients = obs_matrix->size1;
-    size_t n_genes = obs_matrix->size2;
-    
-    if (model_len >= n_genes)
-    {
-        cerr << "Maximum model length cannot be larger than the number of genes." << endl;
-        exit(-1);
-    }
-    
+
     // output the settings
     cout << "Running SMC {" << endl;
     cout << "\tInput data: " << dat_file_str << endl;
@@ -170,17 +163,40 @@ double run_smc(long seed,
     cout << "\tFBP: " << fbp << endl;
     cout << "\tBGP: " << bgp << endl;
     cout << "}" << endl;
-    
 
-    
+    return run_smc_from_matrix(seed, obs_matrix, model_len, n_particles, n_smc_iter, n_kernel_iter, has_passenger, swap_prob, fbp, bgp, states, log_weights);
+    delete obs_matrix;
+}
+
+double run_smc_from_matrix(long seed,
+                           gsl_matrix *obs_matrix,
+                           unsigned int model_len,
+                           unsigned int n_particles,
+                           unsigned int n_smc_iter,
+                           unsigned int n_kernel_iter,
+                           bool has_passenger,
+                           double swap_prob,
+                           double fbp,
+                           double bgp,
+                           unsigned int *states,
+                           double *log_weights)
+{
+    size_t n_patients = obs_matrix->size1;
+    size_t n_genes = obs_matrix->size2;
+
+    if (model_len >= n_genes)
+    {
+        cerr << "Maximum model length cannot be larger than the number of genes." << endl;
+        exit(-1);
+    }
+
     // compute the row sum for each patient
     vector<size_t> row_sum(n_patients);
     compute_row_sum(*obs_matrix, row_sum);
-    
-    
+
     // allocate random object
     gsl_rng *random = generate_random_object(seed);
-    
+
     // smc options
     SMCOptions smc_options;
     smc_options.num_particles = n_particles;
@@ -188,41 +204,71 @@ double run_smc(long seed,
     smc_options.resample_last_round = false;
     smc_options.main_seed = gsl_rng_get(random);
     smc_options.resampling_seed = gsl_rng_get(random);
-    
+
     // set Markov kernel move type
+    string move_type_str = "MH"; // later, provide GIBBS as an option
     MoveType kernel_move_type = move_type_str == "GIBBS" ? MoveType::GIBBS : MoveType::MH;
-    
+
     // LPM model proposal
     LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, kernel_move_type);
-    
-    // Declare conditional SMC object
-    ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
-    
+
     // Construct LPMParam object
     LinearProgressionParameters param(fbp, bgp);
-    
+
+    // Declare conditional SMC object
+    ConditionalSMC<LinearProgressionState, LinearProgressionParameters> smc(smc_model, smc_options);
+
     // run (output timing in seconds)
     auto start = std::chrono::high_resolution_clock::now();
-    csmc.initialize(param);
+    smc.initialize(param);
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     cout << elapsed.count() << " seconds elapsed." <<  endl;
-    
-    // fill the states and log_weights
-    // dimension of states should be n_particles x n_genes
-    // dimension of the log_weights should be n_particles
-    size_t idx = 0;
-    for (size_t i = 0; i < n_particles; i++) {
-        log_weights[i] = csmc.get_log_weight(n_smc_iter - 1, i);
-        const LinearProgressionState &state = csmc.get_state(n_smc_iter - 1, i);
-        const vector<size_t> pathway = state.get_pathway_membership();
-        for (size_t j = 0; j < n_genes; j++) {
-            idx = i*n_genes + j;
-            states[idx] = pathway[j];
+
+//    for (size_t r = 0; r < n_smc_iter; r++) {
+//        cout << "log_norm, " << smc.get_log_norm(r) << endl;
+//    }
+//    for (size_t r = 0; r < n_smc_iter; r++) {
+//        cout << "iter: " << r << endl;
+//        unordered_map<string, unsigned int> unique_states;
+//        unordered_map<string, double> unique_states_normalized_weights;
+//        for (size_t k = 0; k < n_particles; k++) {
+//            const LinearProgressionState &state = smc.get_state(r, k);
+//            double prob = exp(smc.get_log_weight(r, k) - smc.get_log_norm(r));
+//            if (unique_states.count(state.to_string()) == 0) {
+//                unique_states_normalized_weights[state.to_string()] = prob;
+//                unique_states[state.to_string()] = 0; // initialize the value to 0
+//            }
+//            unique_states[state.to_string()] += 1;
+//            cout << state.to_string() << ", " << smc.get_log_weight(r, k) << ", " << prob <<  endl;
+//        }
+//        cout << unique_states.size() << endl;
+//        double sum = 0.0;
+//        for (auto it = unique_states.begin(); it != unique_states.end(); ++it) {
+//            double prob = unique_states_normalized_weights[it->first] * it->second;
+//            sum += prob;
+//            cout << it->first << ", " << unique_states_normalized_weights[it->first] << ", " << it->second << endl;
+//        }
+//        cout << "sum: " << sum << endl;
+//    }
+
+    if (states != 0 && log_weights != 0) {
+        // fill the states and log_weights
+        // dimension of states should be n_particles x n_genes
+        // dimension of the log_weights should be n_particles
+        size_t idx = 0;
+        for (size_t i = 0; i < n_particles; i++) {
+            log_weights[i] = smc.get_log_weight(n_smc_iter - 1, i);
+            const LinearProgressionState &state = smc.get_state(n_smc_iter - 1, i);
+            const vector<size_t> pathway = state.get_pathway_membership();
+            for (size_t j = 0; j < n_genes; j++) {
+                idx = i*n_genes + j;
+                states[idx] = pathway[j];
+            }
         }
     }
-    
-    return csmc.get_log_marginal_likelihood();
+
+    return smc.get_log_marginal_likelihood();
 }
 
 double model_selection(long seed,
@@ -242,12 +288,6 @@ double model_selection(long seed,
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
-//    string output_file_str = "";
-//    if (output_file != 0) {
-//        stringstream ss;
-//        ss << output_file;
-//        output_file_str = ss.str();
-//    }
     string move_type_str = "MH"; // later, provide GIBBS as an option
     
     // load the data
@@ -360,6 +400,8 @@ double model_selection(long seed,
     log_f_hat -= (gsl_sf_lnchoose(n_genes, model_len) + (n_genes - model_len) * log(model_len) + gsl_sf_lnfact(model_len));
 
     return log_f_hat;
+    
+    delete obs_matrix;
 }
 
 double compute_likelihood(const char *dat_file,
@@ -408,4 +450,6 @@ double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
 
     double log_lik = compute_pathway_likelihood(*obs_matrix, row_sum, state, params);
     return log_lik;
+    
+    delete obs_matrix;
 }

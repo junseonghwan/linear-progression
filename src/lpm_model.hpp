@@ -57,7 +57,7 @@ class LinearProgressionModel : public ProblemSpecification<LinearProgressionStat
     
     double get_temperature(size_t t);
     void swap_pathway_move(gsl_rng *random, LinearProgressionState &state, LinearProgressionParameters &params);
-    void mh_kernel(gsl_rng *random, int t, LinearProgressionState &curr, LinearProgressionParameters &params);
+    void mh_kernel(gsl_rng *random, LinearProgressionState &curr, LinearProgressionParameters &params);
     void gibbs_kernel(gsl_rng *random, int t, LinearProgressionState &curr, LinearProgressionParameters &params);
     
 public:

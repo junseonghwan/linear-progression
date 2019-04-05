@@ -5,12 +5,16 @@
 //  Created by Seong-Hwan Jun on 2019-02-01.
 //
 
+#include <algorithm>
 #include <fstream>
 #include <iostream>
+#include <unordered_map>
 #include <vector>
 
 #include <boost/filesystem.hpp>
 #include <boost/algorithm/string.hpp>
+
+#include <gsl/gsl_randist.h>
 
 #include "data_util.hpp"
 
@@ -385,7 +389,7 @@ void write_pg_output(string path,
     log_marginal_file.close();
 }
 
-void compute_row_sum(gsl_matrix &obs, vector<size_t> &row_sum)
+void compute_row_sum(const gsl_matrix &obs, vector<size_t> &row_sum)
 {
     // compute the row sum for obs matrix
     size_t M = obs.size1;
@@ -403,3 +407,122 @@ void compute_row_sum(gsl_matrix &obs, vector<size_t> &row_sum)
     }
 }
 
+void sample_pathway_uniform(gsl_rng *random, unsigned int num_pathways, vector<unsigned int> &ret_pathway)
+{
+    size_t n_genes = ret_pathway.size();
+    size_t num_divider_locations = n_genes - 1;
+    size_t num_dividers = num_pathways;
+    
+    size_t *possible_divider_positions = new size_t[num_divider_locations];
+    size_t *dividers = new size_t[num_pathways];
+    size_t *genes = new size_t[n_genes];
+    
+    // populate divider locations
+    for (size_t n = 0; n < num_divider_locations; n++) {
+        possible_divider_positions[n] = n + 1;
+    }
+    
+    // populate genes
+    for (size_t n = 0; n < n_genes; n++) {
+        genes[n] = n;
+    }
+    
+    // select divider locations
+    gsl_ran_choose(random, dividers, num_dividers - 1, possible_divider_positions, num_divider_locations, sizeof(size_t));
+    // last divider location is the last index
+    dividers[num_dividers - 1] = num_divider_locations + 1;
+    // sort the divider indices in the increasing order
+    sort(dividers, dividers + num_dividers);
+    // shuffle genes
+    gsl_ran_shuffle(random, genes, n_genes, sizeof(size_t));
+    
+    size_t n = 0;
+    for (size_t k = 0; k < num_pathways; k++) {
+        for (; n < n_genes; n++) {
+            size_t g = genes[n];
+            if (n < dividers[k]) {
+                ret_pathway[g] = k;
+            } else {
+                break;
+            }
+        }
+    }
+    
+    delete [] genes;
+    delete [] possible_divider_positions;
+    delete [] dividers;
+}
+
+void sample_stages_uniform(gsl_rng *random, unsigned int n_pathways, vector<unsigned int> &ret_stages)
+{
+    unsigned int n_patients = ret_stages.size();
+    unsigned int i;
+    unsigned int stage;
+    for (i = 0; i < n_patients; i++) {
+        stage = gsl_rng_uniform_int(random, n_pathways);
+        ret_stages[i] = stage;
+    }
+}
+
+gsl_matrix *simulate_data(gsl_rng *random,
+                          unsigned int n_pathways,
+                          const vector<unsigned int> &pathway,
+                          const vector<unsigned int> &patient_stages)
+{
+    unsigned int n_patients = patient_stages.size();
+    unsigned int n_genes = pathway.size();
+    unsigned int k, g, n;
+
+    gsl_matrix *data_matrix = gsl_matrix_alloc(n_patients, n_genes);
+
+    // convert pathway to map : k -> vector
+    unordered_map<unsigned int, vector<unsigned int>> pathway2genes;
+    for (g = 0; g < n_genes; g++) {
+        k = pathway[g];
+        pathway2genes[k].push_back(g);
+    }
+    
+    for (n = 0; n < n_patients; n++) {
+        for (g = 0; g < n_genes; g++) {
+            gsl_matrix_set(data_matrix, n, g, 0);
+        }
+    }
+
+    for (n = 0; n < n_patients; n++) {
+        for (k = 0; k <= patient_stages[n]; k++) {
+            // sample gene from pathway2genes[k]
+            g = pathway2genes[k][gsl_rng_uniform_int(random, pathway2genes[k].size())];
+            gsl_matrix_set(data_matrix, n, g, 1.0);
+        }
+    }
+    return data_matrix;
+}
+
+void add_noise(gsl_rng *random,
+               double fbp,
+               double bgp,
+               gsl_matrix *matrix)
+{
+    size_t i, j;
+    double val, unif;
+    for (i = 0; i < matrix->size1; i++) {
+        for (j = 0; j < matrix->size2; j++) {
+            val = gsl_matrix_get(matrix, i, j);
+            unif = gsl_ran_flat(random, 0.0, 1.0);
+            if (val == 0) {
+                // set val to 1 (from 0) with prob bgp
+                if (unif < bgp) {
+                    cout << "Background mutation at (" << i << ", " << j << ")" << endl;
+                    val = 1;
+                }
+            } else {
+                // set val to 0 (from 1) with prob fbp
+                if (unif < fbp) {
+                    cout << "Flip back at (" << i << ", " << j << ")" << endl;
+                    val = 0;
+                }
+            }
+            gsl_matrix_set(matrix, i, j, val);
+        }
+    }
+}

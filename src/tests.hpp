@@ -8,6 +8,8 @@
 #ifndef tests_hpp
 #define tests_hpp
 
-const double TOL = 1e-3;
+const double ERR_TOL = 1e-3;
+const double LIKELIHOOD_ERR_TOL = 1e-4;
+const double SMC_MARGINAL_ERR_TOL = 1e-2;
 
 #endif /* tests_hpp */

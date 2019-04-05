@@ -5,7 +5,9 @@
 //  Created by Seong-Hwan Jun on 2018-12-26.
 //
 
+#include <algorithm>
 #include <iostream>
+#include <iterator>
 #include <gsl/gsl_randist.h>
 #include <spf/numerical_utils.hpp>
 #include <spf/sampling_utils.hpp>
@@ -53,7 +55,7 @@ void LinearProgressionState::sample_min_valid_pathway(gsl_rng *random)
         sample_from_prior(random);
         return;
     }
- 
+
     size_t *genes = new size_t[n_genes];
     for (size_t n = 0; n < n_genes; n++) {
         genes[n] = n;
@@ -72,27 +74,52 @@ void LinearProgressionState::sample_min_valid_pathway(gsl_rng *random)
 
 void LinearProgressionState::sample_from_prior(gsl_rng *random)
 {
+    // ensure there to be at least one gene in each pathway (empty pathway has zero measure)
+    // 1. sample num_pathways - 1 divider locations in {1, 2, ..., n_genes - 1}
+    // 2. shuffle the genes and allocate genes to pathway based on the divider locations.
+
+    size_t num_pathways = allocate_passenger_pathway ? num_driver_pathways + 1 : num_driver_pathways;
+    size_t num_divider_locations = n_genes - 1;
+    size_t num_dividers = num_pathways;
+
+    size_t *possible_divider_positions = new size_t[num_divider_locations];
+    size_t *dividers = new size_t[num_pathways];
     size_t *genes = new size_t[n_genes];
+
+    // populate divider locations
+    for (size_t n = 0; n < num_divider_locations; n++) {
+        possible_divider_positions[n] = n + 1;
+    }
+    
+    // populate genes
     for (size_t n = 0; n < n_genes; n++) {
         genes[n] = n;
     }
-    // ensure there to be at least one gene in each pathway (empty pathway has zero measure)
-    // 1. shuffle the genes
-    // 2. place the first num_driver_pathway genes to first num_driver_pathway pathways
-    // 3. place remaining genes randomly (including passenger pathway)
-    size_t num_pathways = allocate_passenger_pathway ? num_driver_pathways + 1 : num_driver_pathways;
+
+    // select divider locations
+    gsl_ran_choose(random, dividers, num_dividers - 1, possible_divider_positions, num_divider_locations, sizeof(size_t));
+    // last divider location is the last index
+    dividers[num_dividers - 1] = num_divider_locations + 1;
+    // sort the divider indices in the increasing order
+    sort(dividers, dividers + num_dividers);
+    // shuffle genes
     gsl_ran_shuffle(random, genes, n_genes, sizeof(size_t));
-    for (size_t n = 0; n < n_genes; n++) {
-        size_t g = genes[n];
-        if (n < num_driver_pathways) {
-            update_pathway_membership(g, n);
-        } else {
-            size_t k = gsl_rng_uniform_int(random, num_pathways);
-            update_pathway_membership(g, k);
+    
+    size_t n = 0;
+    for (size_t k = 0; k < num_pathways; k++) {
+        for (; n < n_genes; n++) {
+            size_t g = genes[n];
+            if (n < dividers[k]) {
+                update_pathway_membership(g, k);
+            } else {
+                break;
+            }
         }
     }
     
     delete [] genes;
+    delete [] possible_divider_positions;
+    delete [] dividers;
 }
 
 void LinearProgressionState::update_cache(size_t g, size_t old_pathway, size_t new_pathway)
