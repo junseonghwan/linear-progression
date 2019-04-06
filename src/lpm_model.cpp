@@ -120,7 +120,7 @@ shared_ptr<LinearProgressionState> LinearProgressionModel::propose_initial(gsl_r
     }
 }
 
-shared_ptr<LinearProgressionState>LinearProgressionModel::propose_next(gsl_rng *random, int t, const LinearProgressionState &curr, double &log_w, LinearProgressionParameters &params)
+shared_ptr<LinearProgressionState>LinearProgressionModel::propose_next(gsl_rng *random, unsigned int t, const LinearProgressionState &curr, double &log_w, LinearProgressionParameters &params)
 {
     if (update_cache(params)) {
         cerr << "Error: parameters changed in the middle of SMC run!" << endl;
@@ -142,6 +142,12 @@ shared_ptr<LinearProgressionState>LinearProgressionModel::propose_next(gsl_rng *
     }
     shared_ptr<LinearProgressionState> ret(new_state);
     return ret;
+}
+
+double LinearProgressionModel::log_weight(unsigned int t, const LinearProgressionState &state, const LinearProgressionParameters &params)
+{
+    double temperature_diff = get_temperature(t) - get_temperature(t-1);
+    return temperature_diff * compute_pathway_likelihood(obs, row_sum, state, params);
 }
 
 void LinearProgressionModel::swap_pathway_move(gsl_rng *random, LinearProgressionState &state, LinearProgressionParameters &params)

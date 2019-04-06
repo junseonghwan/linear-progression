@@ -91,4 +91,18 @@ double run_smc_from_matrix(long seed,
                            unsigned int *states,
                            double *log_weights);
 
+void run_pg_from_matrix(long seed,
+                        gsl_matrix *obs_matrix,
+                        unsigned int model_len,
+                        unsigned int n_pg_iter,
+                        unsigned int n_particles,
+                        unsigned int n_smc_iter,
+                        unsigned int n_kernel_iter,
+                        unsigned int n_mh_w_gibbs_iter,
+                        bool has_passenger,
+                        double swap_prob,
+                        double fbp_max,
+                        double bgp_max,
+                        vector<shared_ptr<ParticleGenealogy<LinearProgressionState> > > &ret_states,
+                        vector<shared_ptr<LinearProgressionParameters>> &ret_params);
 #endif /* lpm_h */

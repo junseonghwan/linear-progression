@@ -160,8 +160,8 @@ bool contains_empty_pathway(vector<size_t> &pathway_sizes)
 //    return log_lik;
 //}
 
-double compute_pathway_likelihood(gsl_matrix &obs_matrix,
-                                  vector<size_t> &sum_vec,
+double compute_pathway_likelihood(const gsl_matrix &obs_matrix,
+                                  const vector<size_t> &sum_vec,
                                   const LinearProgressionState &state,
                                   const LinearProgressionParameters &params)
 {

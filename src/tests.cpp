@@ -15,12 +15,17 @@
 
 #include <boost/filesystem.hpp>
 
+#include <gsl/gsl_cdf.h>
+#include <gsl/gsl_randist.h>
+
 #include <spf/numerical_utils.hpp>
 #include <spf/sampling_utils.hpp>
 
 #include "data_util.hpp"
 #include "lpm.hpp"
 #include "lpm_likelihood.hpp"
+#include "lpm_params.hpp"
+#include "lpm_state.hpp"
 
 using namespace std;
 
@@ -121,7 +126,7 @@ void test_marginal_likelihood_estimate_smc(long seed, gsl_matrix *data_matrix, u
             counts[pathway_str] = 0;
         }
         counts[pathway_str] += log_weights[i];
-        cout << pathway_str << ", " << counts[pathway_str] << endl;
+        //cout << pathway_str << ", " << counts[pathway_str] << endl;
     }
 
     double prob_est;
@@ -130,42 +135,11 @@ void test_marginal_likelihood_estimate_smc(long seed, gsl_matrix *data_matrix, u
         pathway_str = it->first;
         prob_est = counts[pathway_str];
         prob_truth = true_probs[pathway_str];
-        cout << pathway_str << ", " << prob_est << ", " << prob_truth << endl;
+        //cout << pathway_str << ", " << prob_est << ", " << prob_truth << endl;
         assert(abs(prob_est - prob_truth) < SMC_MARGINAL_ERR_TOL);
     }
     
     cout << "SMC test passed!" << endl;
-}
-
-void test_prior()
-{
-    gsl_rng *random = generate_random_object(123);
-
-    unsigned int n_pathways = 2;
-    unsigned int n_genes = 3;
-    size_t n_mc_samples = 100000;
-    
-    vector<unsigned int> true_pathway(n_genes);
-    unordered_map<string, unsigned int> counts;
-    for (size_t i = 0; i < n_mc_samples; i++) {
-        sample_pathway_uniform(random, n_pathways, true_pathway);
-        string str = "";
-        for (size_t g = 0; g < n_genes; g++) {
-            if (g < n_genes - 1)
-                str += to_string(true_pathway[g]) + "_";
-            else
-                str += to_string(true_pathway[g]);
-        }
-        counts[str] += 1;
-    }
-    
-    double est = 0.0;
-    for (auto it = counts.begin(); it != counts.end(); ++it) {
-        est = (double)it->second/n_mc_samples;
-        cout << it->first << ": " << est << endl;
-        assert(abs(est - 1./6) < 0.01);
-    }
-    cout << "Prior sampling test passed!" << endl;
 }
 
 void test_log_marginal_estimates()
@@ -265,6 +239,112 @@ void test_log_marginal_estimates()
     test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_smc_particles, n_smc_iter, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-2]);
 }
 
+void test_prior()
+{
+    gsl_rng *random = generate_random_object(123);
+    
+    unsigned int n_pathways = 2;
+    unsigned int n_genes = 3;
+    size_t n_mc_samples = 100000;
+    
+    vector<unsigned int> true_pathway(n_genes);
+    unordered_map<string, unsigned int> counts;
+    for (size_t i = 0; i < n_mc_samples; i++) {
+        sample_pathway_uniform(random, n_pathways, true_pathway);
+        string str = "";
+        for (size_t g = 0; g < n_genes; g++) {
+            if (g < n_genes - 1)
+                str += to_string(true_pathway[g]) + "_";
+            else
+                str += to_string(true_pathway[g]);
+        }
+        counts[str] += 1;
+    }
+    
+    double est = 0.0;
+    for (auto it = counts.begin(); it != counts.end(); ++it) {
+        est = (double)it->second/n_mc_samples;
+        cout << it->first << ": " << est << endl;
+        assert(abs(est - 1./6) < 0.01);
+    }
+    cout << "Prior sampling test passed!" << endl;
+}
+
+void test_posterior()
+{
+    gsl_rng *random = generate_random_object(1);
+
+    long seed;
+    double error_max = 0.2;
+    size_t num_reps = 20;
+    size_t n_pathways = 3;
+    size_t n_patients = 200;
+    size_t n_genes = 5;
+
+    size_t n_pg_iter = 50;
+    size_t n_particles = 200;
+    size_t n_smc_iter = 2*n_genes;
+    size_t n_kernel_iter = 1;
+    size_t n_mh_w_gibbs_iter = 20;
+    bool has_passenger = false;
+    double swap_prob = 0.2;
+
+    vector<unsigned int> stages(n_patients);
+    vector<unsigned int> true_pathway(n_genes);
+
+    sample_stages_uniform(random, n_pathways, stages);
+    sample_pathway_uniform(random, n_pathways, true_pathway);
+    
+    double bgp, fbp, chi2 = 0.0;
+    for (size_t rep = 0; rep < num_reps; rep++) {
+        // 1. sample parameters
+        // 2. add noise to the data
+        // 3. run particle Gibbs to generate posterior over the parameters
+        // 4. compute quantile of the sampled parametrs amongst the posterior samples: q_i
+        // 5. convert the quantiles to standard normal: Z_i = \Phi(q_i)
+        bgp = gsl_ran_flat(random, 0.01, error_max);
+        //fbp = gsl_ran_flat(random, 0.01, error_max);;
+        fbp = bgp;
+        gsl_matrix *data_matrix = simulate_data(random, n_pathways, true_pathway, stages);
+        add_noise(random, fbp, bgp, data_matrix);
+        
+        // compute the likelihood at the true parameters
+        vector<size_t> row_sum(n_patients);
+        compute_row_sum(*data_matrix, row_sum);
+        LinearProgressionParameters params(fbp, bgp);
+        LinearProgressionState true_state(*data_matrix, row_sum, n_genes, n_pathways, false);
+        for (size_t idx = 0; idx < n_genes; idx++) {
+            true_state.update_pathway_membership(idx, true_pathway[idx]);
+        }
+        double true_log_lik = compute_pathway_likelihood(*data_matrix, row_sum, true_state, params);
+        cout << "True log lik: " << true_log_lik << endl;
+        
+        seed = gsl_rng_get(random);
+        vector<shared_ptr<ParticleGenealogy<LinearProgressionState> > > ret_states(n_pg_iter);
+        vector<shared_ptr<LinearProgressionParameters>> ret_params(n_pg_iter);
+        run_pg_from_matrix(seed, data_matrix, n_pathways, n_pg_iter, n_particles, n_smc_iter, n_kernel_iter, n_mh_w_gibbs_iter, has_passenger, swap_prob, 0.0, error_max, ret_states, ret_params);
+    
+        size_t bgp_q = 0;
+        for (size_t j = 0; j < n_pg_iter; j++) {
+            LinearProgressionParameters &param = *ret_params[j].get();
+            if (bgp > param.get_bgp()) {
+                bgp_q += 1;
+            }
+        }
+        double u =  (double)bgp_q/n_pg_iter;
+        double zi = gsl_cdf_gaussian_Qinv(u, 1);
+        chi2 += pow(zi, 2);
+        cout << "BGP: " << bgp << endl;
+        cout << "FBP: " << fbp << endl;
+        cout << "Z_i: " << zi << endl;
+    }
+    // 6. test that the mean of Z = 0 using {Z_i}. If the null hypothesis is rejected, then the posterior code is incorrectly implemented.
+    cout << "chi^2: " << chi2 << endl;
+    // check that |z| < 1.96
+    double pval = 1 - gsl_cdf_chisq_P(chi2, num_reps);
+    assert(pval > 0.05);
+}
+
 int main()
 {
     boost::filesystem::path curr_path = boost::filesystem::current_path();
@@ -275,6 +355,7 @@ int main()
     test_likelihood(data_path);
     test_log_marginal_estimates();
     test_prior();
+    test_posterior();
     return 0;
 }
 

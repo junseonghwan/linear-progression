@@ -36,9 +36,8 @@ double compute_pathway_likelihood(vector<vector<size_t> > &R,
                                   const LinearProgressionState &state,
                                   const LinearProgressionParameters &params);
 // second one is called when computing likelihood of a particle
-// this one is no longer in use as it is replaced by cache version
-double compute_pathway_likelihood(gsl_matrix &obs,
-                                  vector<size_t> &sum_vec,
+double compute_pathway_likelihood(const gsl_matrix &obs,
+                                  const vector<size_t> &sum_vec,
                                   const LinearProgressionState &state,
                                   const LinearProgressionParameters &params);
 // third one is same as the second one except that it uses likelihood table cached by LPMModel.

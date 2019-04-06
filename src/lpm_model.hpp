@@ -74,7 +74,8 @@ public:
     void set_initial_state(gsl_rng *random, LinearProgressionState *prev_state);
     unsigned long num_iterations();
     shared_ptr<LinearProgressionState> propose_initial(gsl_rng *random, double &log_w, LinearProgressionParameters &params);
-    shared_ptr<LinearProgressionState> propose_next(gsl_rng *random, int t, const LinearProgressionState &curr, double &log_w, LinearProgressionParameters &params);
+    shared_ptr<LinearProgressionState> propose_next(gsl_rng *random, unsigned int t, const LinearProgressionState &curr, double &log_w, LinearProgressionParameters &params);
+    double log_weight(unsigned int t, const LinearProgressionState &curr, const LinearProgressionParameters &params);
     ~LinearProgressionModel();
     
 };

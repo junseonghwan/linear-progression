@@ -512,13 +512,13 @@ void add_noise(gsl_rng *random,
             if (val == 0) {
                 // set val to 1 (from 0) with prob bgp
                 if (unif < bgp) {
-                    cout << "Background mutation at (" << i << ", " << j << ")" << endl;
+                    //cout << "Background mutation at (" << i << ", " << j << ")" << endl;
                     val = 1;
                 }
             } else {
                 // set val to 0 (from 1) with prob fbp
                 if (unif < fbp) {
-                    cout << "Flip back at (" << i << ", " << j << ")" << endl;
+                    //cout << "Flip back at (" << i << ", " << j << ")" << endl;
                     val = 0;
                 }
             }

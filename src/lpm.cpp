@@ -106,7 +106,7 @@ void run_pg(long seed,
     ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
 
     // Declare param proposal object
-    LPMParamProposal pg_proposal(n_patients, n_mh_w_gibbs_iter, fbp_max, bgp_max);
+    LPMParamProposal pg_proposal(*obs_matrix, row_sum, n_mh_w_gibbs_iter, fbp_max, bgp_max);
     
     // Initialize PG object
     ParticleGibbs<LinearProgressionState, LinearProgressionParameters> pg(pmcmc_options, csmc, pg_proposal);
@@ -128,6 +128,95 @@ void run_pg(long seed,
 
     // output the states and parameters
     write_pg_output(output_path_str, states, log_marginal_likelihoods, params, pg_proposal);
+}
+
+void run_pg_from_matrix(long seed,
+                        gsl_matrix *obs_matrix,
+                        unsigned int model_len,
+                        unsigned int n_pg_iter,
+                        unsigned int n_particles,
+                        unsigned int n_smc_iter,
+                        unsigned int n_kernel_iter,
+                        unsigned int n_mh_w_gibbs_iter,
+                        bool has_passenger,
+                        double swap_prob,
+                        double fbp_max,
+                        double bgp_max,
+                        vector<shared_ptr<ParticleGenealogy<LinearProgressionState> > > &ret_states,
+                        vector<shared_ptr<LinearProgressionParameters>> &ret_params)
+{
+    string move_type_str = "MH";
+    size_t n_patients = obs_matrix->size1;
+    size_t n_genes = obs_matrix->size2;
+    
+    if (model_len >= n_genes)
+    {
+        cerr << "Maximum model length cannot be larger than the number of genes." << endl;
+        exit(-1);
+    }
+    
+    // output the settings
+    cout << "Running PG {" << endl;
+    cout << "\tNum patients: " << n_patients << endl;
+    cout << "\tModel length: " << model_len << endl;
+    cout << "\tNum PG iter: " << n_pg_iter << endl;
+    cout << "\tNum particles: " << n_particles << endl;
+    cout << "\tNum SMC iter: " << n_smc_iter << endl;
+    cout << "\tNum kernel iter: " << n_kernel_iter << endl;
+    cout << "\tNum MHwGibbs iter: " << n_mh_w_gibbs_iter << endl;
+    cout << "\tAllocate passenger pathway: " << to_string(has_passenger) << endl;
+    cout << "\tSwap prob: " << swap_prob << endl;
+    cout << "\tFBP max: " << fbp_max << endl;
+    cout << "\tBGP max: " << bgp_max << endl;
+    cout << "}" << endl;
+    
+    // compute the row sum for each patient
+    vector<size_t> row_sum(n_patients);
+    compute_row_sum(*obs_matrix, row_sum);
+    
+    
+    // allocate random object
+    gsl_rng *random = generate_random_object(seed);
+    
+    // smc options
+    SMCOptions smc_options;
+    smc_options.num_particles = n_particles;
+    smc_options.ess_threshold = 1.0;
+    smc_options.resample_last_round = false;
+    smc_options.main_seed = gsl_rng_get(random);
+    smc_options.resampling_seed = gsl_rng_get(random);
+    
+    // pmcmc options
+    PMCMCOptions pmcmc_options(gsl_rng_get(random), n_pg_iter);
+    
+    // set Markov kernel move type
+    MoveType kernel_move_type = move_type_str == "GIBBS" ? MoveType::GIBBS : MoveType::MH;
+    
+    // LPM model proposal
+    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, kernel_move_type);
+    
+    // Declare conditional SMC object
+    ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
+    
+    // Declare param proposal object
+    LPMParamProposal pg_proposal(*obs_matrix, row_sum, n_mh_w_gibbs_iter, fbp_max, bgp_max);
+    
+    // Initialize PG object
+    ParticleGibbs<LinearProgressionState, LinearProgressionParameters> pg(pmcmc_options, csmc, pg_proposal);
+    
+    // run (output timing in seconds)
+    auto start = std::chrono::high_resolution_clock::now();
+    pg.run();
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed = end - start;
+    cout << elapsed.count() << " seconds elapsed." <<  endl;
+    
+    //vector<double> &log_marginal_likelihoods = pg.get_log_marginal_likelihoods();
+    ret_params = pg.get_parameters();
+    ret_states = pg.get_states();
+    ParticleGenealogy<LinearProgressionState> *genealogy = ret_states.at(ret_states.size() - 1).get();
+    const LinearProgressionState &state = genealogy->get_state_at(genealogy->size() - 1);
+    cout << "Current solution:\n" << state.to_string() << endl;
 }
 
 double run_smc(long seed,
@@ -453,3 +542,4 @@ double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
     
     delete obs_matrix;
 }
+
