@@ -50,6 +50,9 @@ void write_pg_output(string path,
                      vector<shared_ptr<LinearProgressionParameters> > &params,
                      LPMParamProposal &pg_proposal);
 
+void write_csv(string path, vector<unsigned int> data);
+void write_matrix(string path, const gsl_matrix &data);
+
 // data simulation functions
 // sample a pathway into ret_pathway
 // note: ret_pathway.size() == n_genes

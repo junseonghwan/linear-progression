@@ -37,14 +37,7 @@ extern "C" {
                     double bgp,
                     unsigned int *states,
                     double *log_weights);
-
     
-    // let k = model_len
-    // let \theta_i = (fbp_i, bgp_i) be a sample from prior p(\theta)
-    // run SMC to generate pathway samples {X_j} given \theta_i and k
-    // compute: \sum_i (\sum_j p(y | X_j, \theta_i, k) p(X_j | k))
-    // this is to approximate f(k) = \int_{\theta} \sum_x  p(y | x, \theta, k) p(x | k) p(\theta) d\theta
-    // returns log(\hat{f}(k))
     double model_selection(long seed,
                            const char *dat_file,
                            //const char *output_file,
@@ -69,13 +62,13 @@ extern "C" {
                               double fbp,
                               double bgp);
     
-    double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
-                                          unsigned int *pathway,
-                                          unsigned int model_len,
-                                          unsigned int n_genes,
-                                          bool has_passenger,
-                                          double fbp,
-                                          double bgp);
+    void generate_data(long seed,
+                       const char *output_path,
+                       unsigned int n_patients,
+                       unsigned int model_len,
+                       unsigned int n_genes,
+                       double fbp,
+                       double bgp);
 }
 
 double run_smc_from_matrix(long seed,
@@ -105,4 +98,13 @@ void run_pg_from_matrix(long seed,
                         double bgp_max,
                         vector<shared_ptr<ParticleGenealogy<LinearProgressionState> > > &ret_states,
                         vector<shared_ptr<LinearProgressionParameters>> &ret_params);
+
+double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
+                                      unsigned int *pathway,
+                                      unsigned int model_len,
+                                      unsigned int n_genes,
+                                      bool has_passenger,
+                                      double fbp,
+                                      double bgp);
+
 #endif /* lpm_h */

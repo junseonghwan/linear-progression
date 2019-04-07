@@ -19,7 +19,6 @@ using namespace std;
 
 class LPMParamProposal : public PGProposal<LinearProgressionState, LinearProgressionParameters>
 {
-    size_t n_patients;
     size_t n_mh_iter;
     double fbp_max;
     double bgp_max;

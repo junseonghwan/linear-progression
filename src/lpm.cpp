@@ -424,7 +424,7 @@ double model_selection(long seed,
     vector<double> smc_log_marginals(n_mc_samples);
     auto start = std::chrono::high_resolution_clock::now();
     
-    printf("n_unique_states, fbp, bgp, log_marginal\n");
+    printf("n_unique_states, fbp, bgp, log_marginal_sum, log_marginal_smc\n");
     omp_set_num_threads(n_threads);
 #pragma omp parallel for
 {
@@ -485,8 +485,8 @@ double model_selection(long seed,
         log_f_hat = log_add(log_f_hat, log_marginals[n]);
     }
 
-    // account for p(x | model_len) = 1 / ({n_genes \choose model_len} x model_len! x model_len^{n_genes-model_len})
-    log_f_hat -= (gsl_sf_lnchoose(n_genes, model_len) + (n_genes - model_len) * log(model_len) + gsl_sf_lnfact(model_len));
+    // account for p(x | model_len)
+    log_f_hat += log_pathway_prior(model_len, n_genes);
 
     return log_f_hat;
     
@@ -543,3 +543,37 @@ double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
     delete obs_matrix;
 }
 
+void generate_data(long seed,
+                   const char *output_path,
+                   unsigned int model_len,
+                   unsigned int n_genes,
+                   unsigned int n_patients,
+                   double fbp,
+                   double bgp)
+{
+    string output_path_str(output_path, strlen(output_path));
+
+    gsl_rng *random = generate_random_object(seed);
+    
+    vector<unsigned int> stages(n_patients);
+    vector<unsigned int> true_pathway(n_genes);
+    
+    sample_stages_uniform(random, model_len, stages);
+    sample_pathway_uniform(random, model_len, true_pathway);
+    gsl_matrix *data_matrix = simulate_data(random, model_len, true_pathway, stages);
+
+    // output: stages, pathway, parameters, data matrix before contamination
+    string stages_file = output_path_str + "/stages.csv";
+    string pathway_file = output_path_str + "/true_pathways.csv";
+    string clean_matrix_file = output_path_str + "/clean_matrix.csv";
+    string data_matrix_file = output_path_str + "/data_matrix.csv";
+
+    write_csv(stages_file, stages);
+    write_csv(pathway_file, true_pathway);
+    write_matrix(clean_matrix_file, *data_matrix);
+    
+    add_noise(random, fbp, bgp, data_matrix);
+
+    // output: data after contamination
+    write_matrix(data_matrix_file, *data_matrix);
+}

@@ -15,9 +15,15 @@
 
 double log_pathway_prior(unsigned int n_pathways, unsigned int n_genes)
 {
-    double ret = gsl_sf_lnchoose(n_genes - 1, n_pathways - 1);
-    ret += gsl_sf_lnfact(n_genes);
-    return -ret;
+    vector<double> f(n_pathways);
+    f[0] = 1.0;
+    for (size_t k = 1; k < n_pathways; k++) {
+        f[k] = pow(k+1, n_genes);
+        for (size_t j = 0; j < k; j++) {
+            f[k] -= gsl_sf_choose(k+1, j+1) * f[j];
+        }
+    }
+    return -log(f[n_pathways-1]);
 }
 
 double compute_log_lik_active(double n_mutations, double pathway_size, double bgp, double fbp)

@@ -389,6 +389,37 @@ void write_pg_output(string path,
     log_marginal_file.close();
 }
 
+void write_csv(string path, vector<unsigned int> data)
+{
+    ofstream f;
+    f.open(path, ios::out);
+    for (size_t i = 0; i < data.size(); i++) {
+        f << data[i] << endl;
+    }
+    f.close();
+}
+
+void write_matrix(string path, const gsl_matrix &data)
+{
+    ofstream f;
+    f.open(path, ios::out);
+    if (f.is_open()) {
+        for (size_t i = 0; i < data.size1; i++) {
+            for (size_t j = 0; j < data.size2; j++) {
+                f << gsl_matrix_get(&data, i, j);
+                if (j < data.size2 - 1) {
+                    f << ", ";
+                }
+            }
+            f << "\n";
+        }
+        f.close();
+    } else {
+        cerr << "Error: cannot open file: " << path << endl;
+        exit(-1);
+    }
+}
+
 void compute_row_sum(const gsl_matrix &obs, vector<size_t> &row_sum)
 {
     // compute the row sum for obs matrix

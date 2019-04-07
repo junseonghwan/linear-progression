@@ -239,7 +239,7 @@ void test_log_marginal_estimates()
     test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_smc_particles, n_smc_iter, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-2]);
 }
 
-void test_prior()
+void test_prior_sampling()
 {
     gsl_rng *random = generate_random_object(123);
     
@@ -268,6 +268,14 @@ void test_prior()
         assert(abs(est - 1./6) < 0.01);
     }
     cout << "Prior sampling test passed!" << endl;
+}
+
+void test_prior_calculation()
+{
+    size_t n_genes = 3;
+    size_t n_pathways = 2;
+    double ret = log_pathway_prior(n_pathways, n_genes);
+    assert(ret == -log(6));
 }
 
 void test_posterior()
@@ -337,6 +345,8 @@ void test_posterior()
         cout << "BGP: " << bgp << endl;
         cout << "FBP: " << fbp << endl;
         cout << "Z_i: " << zi << endl;
+        
+        delete data_matrix;
     }
     // 6. test that the mean of Z = 0 using {Z_i}. If the null hypothesis is rejected, then the posterior code is incorrectly implemented.
     cout << "chi^2: " << chi2 << endl;
@@ -354,8 +364,10 @@ int main()
 
     test_likelihood(data_path);
     test_log_marginal_estimates();
-    test_prior();
+    test_prior_sampling();
+    test_prior_calculation();
     test_posterior();
+    //generate_data(1, "/Users/seonghwanjun/Desktop/", 3, 25, 100, 0.05, 0.05);
     return 0;
 }
 

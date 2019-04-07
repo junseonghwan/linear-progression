@@ -20,12 +20,15 @@ n_smc_iter = 2*n_genes
 n_kernel_iter = 1
 has_passenger = False
 swap_prob = 0.2
-error_prob_max = 0.1
+error_prob_max = 0.2
 n_threads = 8
-model_begin = 5
-model_end = 5
+model_begin = 2
+model_end = 10
 rep_begin = 0
 rep_end = 100
+true_model_len = 3
+fbp = 0.05
+bgp = 0.05
 
 _seed = ctypes.c_long(seed)
 _n_mc_samples = ctypes.c_uint(n_mc_samples)
@@ -39,12 +42,12 @@ _n_genes = ctypes.c_uint(n_genes)
 _log_marginals = (ctypes.c_double * n_mc_samples)()
 _log_marginals_smc = (ctypes.c_double * n_mc_samples)()
 
-for rep in range(rep_begin, rep_end):
-    data_path = curr_dir + "/data/raphael/25genes/error0.05/rep" + str(rep) + "/"
+for rep in range(1, rep_end):
+    data_path = curr_dir + "/data/model_selection/model3/rep" + str(rep) + "/"
     output_path = data_path + "model_selection/"
-    input_path = data_path + "matrix.csv"
-    true_pathway_file = data_path + "generative_mem_mat.csv"
-    true_param_file = data_path + "parameters.csv"
+    input_path = data_path + "data_matrix.csv"
+    true_pathway_file = data_path + "true_pathways.csv"
+    #true_param_file = data_path + "parameters.csv"
 
     _input_path = ctypes.create_string_buffer(input_path.encode())
 
@@ -53,15 +56,16 @@ for rep in range(rep_begin, rep_end):
 
     # compute the likelihood under the true state at the sampled parameters
     pathway_matrix = np.genfromtxt(true_pathway_file, delimiter=',')
-    true_pathway = np.int32(np.argmax(pathway_matrix, axis=1))
+    #true_pathway = np.int32(np.argmax(pathway_matrix, axis=1))
+    true_pathway = np.int32(pathway_matrix)
     _true_pathway = np.ctypeslib.as_ctypes(true_pathway)
 
-    true_model_len = pathway_matrix.shape[1]
+    #true_model_len = pathway_matrix.shape[1]
     _true_model_len = ctypes.c_uint(true_model_len)
 
-    true_params = np.genfromtxt(true_param_file, delimiter=',')
-    _bgp = ctypes.c_double(true_params[0])
-    _fbp = ctypes.c_double(true_params[1])
+    #true_params = np.genfromtxt(true_param_file, delimiter=',')
+    _bgp = ctypes.c_double(bgp)
+    _fbp = ctypes.c_double(fbp)
 
     # generate fbps and bgps from the prior distribution
     bgps = np.random.uniform(low=0.0, high=error_prob_max, size=n_mc_samples)
