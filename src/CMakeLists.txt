@@ -13,7 +13,7 @@ add_library(lpm_lib SHARED ${SRCS})
 
 find_package (PkgConfig REQUIRED)
 find_package (GSL REQUIRED)
-find_package(BOOST 1.66 COMPONENTS regex program_options filesytem REQUIRED)
+find_package(Boost 1.67 COMPONENTS regex program_options filesytem REQUIRED)
 if(Boost_FOUND)
     include_directories(${Boost_INCLUDE_DIRS})
 endif()

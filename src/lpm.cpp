@@ -429,7 +429,6 @@ double model_selection(long seed,
     printf("n_unique_states, fbp, bgp, log_marginal_sum, log_marginal_smc\n");
     omp_set_num_threads(n_threads);
 #pragma omp parallel for
-{
     for (size_t n = 0; n < n_mc_samples; n++) {
         // smc options
         SMCOptions smc_options;
@@ -475,7 +474,6 @@ double model_selection(long seed,
 
         printf("%zd, %f, %f, %f, %f\n", unique_states.size(), fbps[n], bgps[n], log_marginals[n], ret_smc[n]);
     }
-}
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     cout << elapsed.count() << " seconds elapsed." <<  endl;
