@@ -2,6 +2,11 @@ import numpy as np
 import ctypes
 import os
 import platform
+import sys
+
+true_model_len = int(sys.argv[1])
+rep_begin = int(sys.argv[2])
+rep_end = int(sys.argv[3])
 
 if platform.system() == "Linux":
     lpm_lib = np.ctypeslib.load_library("liblpm_lib.so", "bin/")    
@@ -24,9 +29,6 @@ error_prob_max = 0.2
 n_threads = 8
 model_begin = 2
 model_end = 10
-rep_begin = 0
-rep_end = 100
-true_model_len = 3
 fbp = 0.05
 bgp = 0.05
 
@@ -42,8 +44,8 @@ _n_genes = ctypes.c_uint(n_genes)
 _log_marginals = (ctypes.c_double * n_mc_samples)()
 _log_marginals_smc = (ctypes.c_double * n_mc_samples)()
 
-for rep in range(1, rep_end):
-    data_path = curr_dir + "/data/model_selection/model3/rep" + str(rep) + "/"
+for rep in range(rep_begin, rep_end):
+    data_path = curr_dir + "/data/model_selection/model" + str(true_model_len) + "/rep" + str(rep) + "/"
     output_path = data_path + "model_selection/"
     input_path = data_path + "data_matrix.csv"
     true_pathway_file = data_path + "true_pathways.csv"
