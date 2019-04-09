@@ -486,7 +486,7 @@ double model_selection(long seed,
     }
 
     // account for p(x | model_len)
-    log_f_hat += log_pathway_prior(model_len, n_genes);
+    log_f_hat += log_pathway_uniform_prior(model_len, n_genes);
 
     return log_f_hat;
     

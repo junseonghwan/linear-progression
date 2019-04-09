@@ -13,7 +13,7 @@
 
 #include "lpm_likelihood.hpp"
 
-double log_pathway_prior(unsigned int n_pathways, unsigned int n_genes)
+double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes)
 {
     vector<double> f(n_pathways);
     f[0] = 1.0;
@@ -25,6 +25,37 @@ double log_pathway_prior(unsigned int n_pathways, unsigned int n_genes)
     }
     return -log(f[n_pathways-1]);
 }
+
+double log_pathway_prior(const LinearProgressionState &pathway, unsigned int n_genes)
+{
+    size_t n_pathways = pathway.get_num_pathways();
+    double log_prior = 0.0;
+    for (size_t k = 0; k < pathway.get_num_pathways(); k++) {
+        log_prior += gsl_sf_lnfact(pathway.get_pathway_size(k));
+    }
+    log_prior -= gsl_sf_lnchoose(n_genes - 1, n_pathways - 1);
+    log_prior -= gsl_sf_lnfact(n_genes);
+    return log_prior;
+}
+
+double log_pathway_prior(const vector<unsigned int> &pathway, unsigned int n_genes, unsigned int n_pathways)
+{
+    unsigned int *pathway_sizes = new unsigned int[n_pathways];
+    for (unsigned int k = 0; k < n_pathways; k++)
+        pathway_sizes[k] = 0;
+    for (unsigned int g = 0; g < n_genes; g++) {
+        pathway_sizes[pathway[g]] += 1;
+    }
+    
+    double log_prior = 0.0;
+    for (size_t k = 0; k < n_pathways; k++) {
+        log_prior += gsl_sf_lnfact(pathway_sizes[k]);
+    }
+    log_prior -= gsl_sf_lnchoose(n_genes - 1, n_pathways - 1);
+    log_prior -= gsl_sf_lnfact(n_genes);
+    return log_prior;
+}
+
 
 double compute_log_lik_active(double n_mutations, double pathway_size, double bgp, double fbp)
 {

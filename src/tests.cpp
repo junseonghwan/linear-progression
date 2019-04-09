@@ -159,7 +159,7 @@ void test_log_marginal_estimates()
     unsigned int n_is_particles = 10000;
 
     unsigned int n_smc_iter = 3;
-    unsigned int n_smc_particles = 1000;
+    unsigned int n_smc_particles = 100000;
     double *exact_log_marginal_lik = new double[n_smc_iter-1];
     for (size_t i = 0; i < n_smc_iter; i++) {
         exact_log_marginal_lik[i] = DOUBLE_NEG_INF;
@@ -242,7 +242,25 @@ void test_log_marginal_estimates()
 void test_prior_sampling()
 {
     gsl_rng *random = generate_random_object(123);
-    
+
+    size_t *genes = new size_t[4];
+    size_t *dest = new size_t[3];
+    for (size_t i = 0; i < 4; i++) {
+        genes[i] = i;
+    }
+    unordered_map<string, size_t> map;
+    for (size_t i = 0; i < 100000; i++) {
+        gsl_ran_choose(random, dest, 3, genes, 4, sizeof(size_t));
+        string str = to_string(dest[0]) + ", " + to_string(dest[1]) + ", " + to_string(dest[2]);
+        if (map.count(str) == 0) {
+            map[str] = 0;
+        }
+        map[str] += 1;
+    }
+    for (auto it = map.begin(); it != map.end(); ++it) {
+        cout << it->first << ": " << (double)map[it->first]/100000 << endl;
+    }
+
     unsigned int n_pathways = 2;
     unsigned int n_genes = 3;
     size_t n_mc_samples = 100000;
@@ -274,8 +292,45 @@ void test_prior_calculation()
 {
     size_t n_genes = 3;
     size_t n_pathways = 2;
-    double ret = log_pathway_prior(n_pathways, n_genes);
+    double ret = log_pathway_uniform_prior(n_pathways, n_genes);
     assert(ret == -log(6));
+
+    n_genes = 4;
+    n_pathways = 2;
+    ret = log_pathway_uniform_prior(n_pathways, n_genes);
+
+    // sample pathways from the prior
+    gsl_rng *random = generate_random_object(1);
+    vector<unsigned int> pathway(n_genes);
+    unordered_map<string, unsigned int> counts;
+    unordered_map<string, double> probs;
+    size_t n_mc_samples = 1000000;
+    for (size_t n = 0; n < n_mc_samples; n++) {
+        sample_pathway_uniform(random, n_pathways, pathway);
+        string s = "";
+        for (size_t g = 0; g < n_genes; g++) {
+            s += to_string(pathway[g]);
+            if (g < n_genes - 1) {
+                s += ", ";
+            }
+        }
+        if (!counts.count(s)) {
+            counts[s] = 0;
+            probs[s] = log_pathway_prior(pathway, n_genes, n_pathways);
+        }
+        counts[s] += 1;
+    }
+
+    cout << "Size: " << counts.size() << endl;
+    assert(abs(ret - log(counts.size())));
+
+    double prob = 0.0;
+    for (auto it = counts.begin(); it != counts.end(); ++it) {
+        prob = (double)it->second/n_mc_samples;
+        ret = exp(probs[it->first]);
+        cout << it->first << ", " << ret << ", " << prob << endl;
+        assert(abs(prob - ret) < ERR_TOL);
+    }
 }
 
 void test_posterior()
@@ -320,6 +375,7 @@ void test_posterior()
         vector<size_t> row_sum(n_patients);
         compute_row_sum(*data_matrix, row_sum);
         LinearProgressionParameters params(fbp, bgp);
+        //LinearProgressionState true_state(n_genes, n_pathways, false);
         LinearProgressionState true_state(*data_matrix, row_sum, n_genes, n_pathways, false);
         for (size_t idx = 0; idx < n_genes; idx++) {
             true_state.update_pathway_membership(idx, true_pathway[idx]);
@@ -363,11 +419,10 @@ int main()
     string data_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/test";
 
     test_likelihood(data_path);
-    test_log_marginal_estimates();
     test_prior_sampling();
     test_prior_calculation();
-    test_posterior();
-    //generate_data(1, "/Users/seonghwanjun/Desktop/", 3, 25, 100, 0.05, 0.05);
+    test_log_marginal_estimates();
+    //test_posterior(); // this takes about 5 minutes depending on the hardware
     return 0;
 }
 

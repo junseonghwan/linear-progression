@@ -443,16 +443,16 @@ void sample_pathway_uniform(gsl_rng *random, unsigned int num_pathways, vector<u
     size_t n_genes = ret_pathway.size();
     size_t num_divider_locations = n_genes - 1;
     size_t num_dividers = num_pathways;
-    
+
     size_t *possible_divider_positions = new size_t[num_divider_locations];
     size_t *dividers = new size_t[num_pathways];
     size_t *genes = new size_t[n_genes];
-    
+
     // populate divider locations
     for (size_t n = 0; n < num_divider_locations; n++) {
         possible_divider_positions[n] = n + 1;
     }
-    
+
     // populate genes
     for (size_t n = 0; n < n_genes; n++) {
         genes[n] = n;
@@ -462,11 +462,9 @@ void sample_pathway_uniform(gsl_rng *random, unsigned int num_pathways, vector<u
     gsl_ran_choose(random, dividers, num_dividers - 1, possible_divider_positions, num_divider_locations, sizeof(size_t));
     // last divider location is the last index
     dividers[num_dividers - 1] = num_divider_locations + 1;
-    // sort the divider indices in the increasing order
     sort(dividers, dividers + num_dividers);
-    // shuffle genes
+
     gsl_ran_shuffle(random, genes, n_genes, sizeof(size_t));
-    
     size_t n = 0;
     for (size_t k = 0; k < num_pathways; k++) {
         for (; n < n_genes; n++) {

@@ -34,9 +34,10 @@ class LinearProgressionState
 
     double log_lik = 0.0;
     
+    void initialize_pathways();
+    
     gsl_matrix &obs;
     vector<size_t> &row_sum;
-    void initialize_pathways();
     void update_cache(size_t g, size_t old_pathway, size_t new_pathway);
 
 public:

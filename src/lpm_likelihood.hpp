@@ -15,7 +15,9 @@
 #include "lpm_params.hpp"
 #include "lpm_state.hpp"
 
-double log_pathway_prior(unsigned int n_pathways, unsigned int n_genes);
+double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes);
+double log_pathway_prior(const LinearProgressionState &pathway, unsigned int n_genes);
+double log_pathway_prior(const vector<unsigned int> &pathway, unsigned int n_genes, unsigned int n_pathways);
 
 // compute log likelihood for a given number of mutations given pathway size and error probabilities
 double compute_log_lik_active(double n_mutations, double pathway_size, double bgp, double fbp);
