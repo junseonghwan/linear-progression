@@ -53,7 +53,7 @@ void test_likelihood(string data_path)
     gsl_matrix *gold = 0;
     unsigned int *true_pathway = 0;
 
-    for (size_t rep = 0; rep < 99; rep++) {
+    for (size_t rep = 0; rep < 10; rep++) {
         rep_path = data_path + "/rep" + to_string(rep);
         gold_standard_file_name = rep_path + "/gold_standard.csv";
         data_file_name = rep_path + "/matrix.csv";
