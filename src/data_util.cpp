@@ -254,7 +254,7 @@ void write_model_selection_output_to_file(string path, size_t n_patients,
 {
     size_t num_samples = fbps.size();
     size_t L = log_evidences.size();
-    
+
     ofstream myfile;
     string evidence_file = path + "/model_evidences_" + to_string(n_patients) + ".csv";
     myfile.open(evidence_file, ios::out);
@@ -268,7 +268,7 @@ void write_model_selection_output_to_file(string path, size_t n_patients,
         cerr << "Error: cannot open " << evidence_file << endl;
         exit(-1);
     }
-    
+
     string log_marginals_file = path + "/log_marginals_" + to_string(n_patients) + ".csv";
     myfile.open(log_marginals_file, ios::out);
     if (myfile.is_open()) {

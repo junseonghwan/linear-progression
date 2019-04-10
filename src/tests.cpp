@@ -422,7 +422,7 @@ int main()
     test_prior_sampling();
     test_prior_calculation();
     test_log_marginal_estimates();
-    //test_posterior(); // this takes about 5 minutes depending on the hardware
+    test_posterior(); // this takes about 5 minutes depending on the hardware
     return 0;
 }
 
