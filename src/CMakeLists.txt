@@ -3,7 +3,6 @@ include_directories(/usr/local/include/ ${OPENMP_CXX_INCLUDE_DIRS} /home/seongju
 file( GLOB SRCS *.cpp *.hpp)
 
 #set (Boost_USE_STATIC_LIBS OFF)
-set (Boost_DEBUG ON)
 #add_definitions(-DBOOST_ALL_NO_LIB)
 #add_definitions(-BOOST_ALL_DYN_LINK)
 
@@ -31,19 +30,8 @@ if (OPENMP_FOUND)
     set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
 endif()
 
-#if (UNIX AND NOT APPLE)
-#if (NOT APPLE)
-#    target_link_libraries(lpm_lib GSL::gsl GSL::gslcblas /home/seongjun/usr/local/bin/libSPF.a /home/seongjun/boost_1_67_0/stage/lib/libboost_system.a /home/seongjun/boost_1_67_0/stage/lib/libboost_filesystem.a /home/seongjun/boost_1_67_0/stage/lib/libboost_program_options.a OpenMP::OpenMP_CXX)
-#    target_link_libraries(tests GSL::gsl GSL::gslcblas /home/seongjun/usr/local/bin/libSPF.a /home/seongjun/boost_1_67_0/stage/lib/libboost_system.a /home/seongjun/boost_1_67_0/stage/lib/libboost_filesystem.a /home/seongjun/boost_1_67_0/stage/lib/libboost_program_options.a OpenMP::OpenMP_CXX)
-#endif()
-#if (APPLE)
-#    target_link_libraries(lpm_lib GSL::gsl GSL::gslcblas /usr/local/bin/libSPF.a /usr/local/lib/libboost_system.a /usr/local/lib/libboost_filesystem.a /usr/local/lib/libboost_program_options.a OpenMP::OpenMP_CXX)
-#    target_link_libraries(tests GSL::gsl GSL::gslcblas /usr/local/bin/libSPF.a /usr/local/lib/libboost_system.a /usr/local/lib/libboost_filesystem.a /usr/local/lib/libboost_program_options.a OpenMP::OpenMP_CXX)
-#endif()
-#message(${CMAKE_SOURCE_DIR}/bin)
-
-target_link_libraries(lpm_lib GSL::gsl GSL::gslcblas /usr/local/bin/libSPF.a /usr/local/lib/libboost_system.a /usr/local/lib/libboost_filesystem.a /usr/local/lib/libboost_program_options.a OpenMP::OpenMP_CXX)
-target_link_libraries(tests GSL::gsl GSL::gslcblas /usr/local/bin/libSPF.a /usr/local/lib/libboost_system.a /usr/local/lib/libboost_filesystem.a /usr/local/lib/libboost_program_options.a OpenMP::OpenMP_CXX)
+target_link_libraries(lpm_lib GSL::gsl GSL::gslcblas /home/seongjun/usr/local/bin/libSPF.a /home/seongjun/boost_1_67_0/stage/lib/libboost_system.a /home/seongjun/boost_1_67_0/stage/lib/libboost_filesystem.a /home/seongjun/boost_1_67_0/stage/lib/libboost_program_options.a OpenMP::OpenMP_CXX)
+target_link_libraries(tests GSL::gsl GSL::gslcblas /home/seongjun/usr/local/bin/libSPF.a /home/seongjun/boost_1_67_0/stage/lib/libboost_system.a /home/seongjun/boost_1_67_0/stage/lib/libboost_filesystem.a /home/seongjun/boost_1_67_0/stage/lib/libboost_program_options.a OpenMP::OpenMP_CXX)
 
 # somehow WORKING_DIRECTORY command does not work!
 #add_test(Tester tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
