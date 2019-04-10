@@ -458,12 +458,14 @@ double model_selection(long seed,
         // enumerate over all particles that was ever generated to approximate \sum_x p(y | x, \theta)
         unordered_set<string> unique_states;
         log_marginals[n] = DOUBLE_NEG_INF;
+        double log_prior = 0.0;
         for (size_t r = 0; r < n_smc_iter; r++) {
             for (size_t i = 0; i < n_particles; i++) {
                 const LinearProgressionState &state = csmc.get_state(r, i);
                 string key = state.to_string();
                 if (unique_states.count(key) == 0) {
-                    log_marginals[n] = log_add(log_marginals[n], state.get_log_lik());
+                    log_prior = log_pathway_prior(state, n_genes);
+                    log_marginals[n] = log_add(log_marginals[n], state.get_log_lik() + log_prior);
                     unique_states.insert(key);
                 }
             }
@@ -484,9 +486,6 @@ double model_selection(long seed,
     for (size_t n = 0; n < n_mc_samples; n++) {
         log_f_hat = log_add(log_f_hat, log_marginals[n]);
     }
-
-    // account for p(x | model_len)
-    log_f_hat += log_pathway_uniform_prior(model_len, n_genes);
 
     return log_f_hat;
     
