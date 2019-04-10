@@ -5,6 +5,12 @@ cmake_minimum_required (VERSION 3.12)
 set(CMAKE_CXX_FLAGS "-std=c++11")
 set(CMAKE_C_FLAGS "-Wall -g" )
 
+set(CMAKE_LIBRARY_PATH "/home/seongjun/boost_1_67_0/stage/lib/")
+set(CMAKE_INCLUDE_PATH "/home/seongjun/boost_1_67_0/boost/")
+set(BOOST_ROOT "/home/seongjun/boost_1_67_0/")
+set(BOOST_INCLUDEDIR "/home/seongjun/boost_1_67_0/boost")
+set(BOOST_LIBRARYDIR "/home/seongjun/boost_1_67_0/stage/lib")
+
 set(OPENMP_CXX_INCLUDE_DIRS /usr/local/opt/libomp/include)
 if (APPLE)
     set(OpenMP_C_FLAGS "-Xpreprocessor -fopenmp -I/usr/local/opt/libomp/include" CACHE INTERNAL "OpenMP flags for Xcode toolchain.")
