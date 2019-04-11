@@ -425,8 +425,9 @@ int main()
 {
     boost::filesystem::path curr_path = boost::filesystem::current_path();
     cout << "Exec dir: " <<  curr_path.string() << endl;
-    //string data_path = "../../data/test";
-    string data_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/test";
+    // when running locally (for debugging) provide path specific to your local computer
+    string data_path = "../../data/test";
+    //string data_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/test";
 
     test_likelihood(data_path);
     test_prior_sampling();
