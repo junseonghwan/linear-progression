@@ -12,39 +12,34 @@
 #include <spf/numerical_utils.hpp>
 #include <spf/sampling_utils.hpp>
 
+#include "data_util.hpp"
 #include "lpm_likelihood.hpp"
 #include "lpm_state.hpp"
 
-//LinearProgressionState::LinearProgressionState(size_t n_genes, size_t num_driver_pathways, bool allocate_passenger_pathway) :
-//n_genes(n_genes), num_driver_pathways(num_driver_pathways), allocate_passenger_pathway(allocate_passenger_pathway)
-//{
-//    initialize_pathways();
-//}
-
-void LinearProgressionState::initialize_pathways()
-{
-    // initialize pathways
-    for (size_t k = 0; k < get_num_pathways(); k++) {
-        pathways.push_back(unordered_set<size_t>());
-    }
-    // initialize pathway membership vector (to 0)
-    for (size_t n = 0; n < n_genes; n++) {
-        pathway_membership.push_back(0);
-        pathways[0].insert(n);
-    }
-}
-
-LinearProgressionState::LinearProgressionState(gsl_matrix &obs, vector<size_t> &row_sums, size_t n_genes, size_t num_driver_pathways, bool allocate_passenger_pathway) :
+LinearProgressionState::LinearProgressionState(const gsl_matrix &obs, const vector<unsigned int> &row_sums, unsigned int n_genes, unsigned int num_driver_pathways, bool allocate_passenger_pathway) :
 n_genes(n_genes), num_driver_pathways(num_driver_pathways), allocate_passenger_pathway(allocate_passenger_pathway), obs(obs), row_sum(row_sums)
 {
     initialize_pathways();
 
-    size_t n_patients = obs.size1;
-    size_t n_pathways = allocate_passenger_pathway ? num_driver_pathways + 1 : num_driver_pathways;
+    unsigned int n_patients = obs.size1;
+    unsigned int n_pathways = allocate_passenger_pathway ? num_driver_pathways + 1 : num_driver_pathways;
     // initialize cache
-    for (size_t m = 0; m < n_patients; m++) {
-        _cache_counts.push_back(vector<size_t>(n_pathways));
+    for (unsigned int m = 0; m < n_patients; m++) {
+        _cache_counts.push_back(vector<unsigned int>(n_pathways));
         compute_counts_for_sample(obs, row_sums, m, _cache_counts[m]);
+    }
+}
+
+void LinearProgressionState::initialize_pathways()
+{
+    // initialize pathways
+    for (unsigned int k = 0; k < get_num_pathways(); k++) {
+        pathways.push_back(unordered_set<unsigned int>());
+    }
+    // initialize pathway membership vector (to 0)
+    for (unsigned int n = 0; n < n_genes; n++) {
+        pathway_membership.push_back(0);
+        pathways[0].insert(n);
     }
 }
 
@@ -56,13 +51,13 @@ void LinearProgressionState::sample_min_valid_pathway(gsl_rng *random)
         return;
     }
 
-    size_t *genes = new size_t[n_genes];
-    for (size_t n = 0; n < n_genes; n++) {
+    unsigned int *genes = new unsigned int[n_genes];
+    for (unsigned int n = 0; n < n_genes; n++) {
         genes[n] = n;
     }
     // populate each of the driver pathways with exactly one gene, and allocate the remaining to passenger pathway
-    gsl_ran_shuffle(random, genes, n_genes, sizeof(size_t));
-    for (size_t n = 0; n < n_genes; n++) {
+    gsl_ran_shuffle(random, genes, n_genes, sizeof(unsigned int));
+    for (unsigned int n = 0; n < n_genes; n++) {
         if (n < num_driver_pathways) {
             update_pathway_membership(genes[n], n);
         } else {
@@ -74,59 +69,19 @@ void LinearProgressionState::sample_min_valid_pathway(gsl_rng *random)
 
 void LinearProgressionState::sample_from_prior(gsl_rng *random)
 {
-    // ensure there to be at least one gene in each pathway (empty pathway has zero measure)
-    // 1. sample num_pathways - 1 divider locations in {1, 2, ..., n_genes - 1}
-    // 2. shuffle the genes and allocate genes to pathway based on the divider locations.
+    vector<unsigned int> new_pathway_membership(n_genes);
+    sample_pathway_from_prior(random, get_num_pathways(), new_pathway_membership);
 
-    size_t num_pathways = allocate_passenger_pathway ? num_driver_pathways + 1 : num_driver_pathways;
-    size_t num_divider_locations = n_genes - 1;
-    size_t num_dividers = num_pathways;
-
-    size_t *possible_divider_positions = new size_t[num_divider_locations];
-    size_t *dividers = new size_t[num_pathways];
-    size_t *genes = new size_t[n_genes];
-
-    // populate divider locations
-    for (size_t n = 0; n < num_divider_locations; n++) {
-        possible_divider_positions[n] = n + 1;
+    for (unsigned int g = 0; g < n_genes; g++) {
+        update_pathway_membership(g, new_pathway_membership[g]);
     }
-    
-    // populate genes
-    for (size_t n = 0; n < n_genes; n++) {
-        genes[n] = n;
-    }
-
-    // select divider locations
-    gsl_ran_choose(random, dividers, num_dividers - 1, possible_divider_positions, num_divider_locations, sizeof(size_t));
-    // last divider location is the last index
-    dividers[num_dividers - 1] = num_divider_locations + 1;
-    // sort the divider indices in the increasing order
-    sort(dividers, dividers + num_dividers);
-    // shuffle genes
-    gsl_ran_shuffle(random, genes, n_genes, sizeof(size_t));
-    
-    size_t n = 0;
-    for (size_t k = 0; k < num_pathways; k++) {
-        for (; n < n_genes; n++) {
-            size_t g = genes[n];
-            if (n < dividers[k]) {
-                update_pathway_membership(g, k);
-            } else {
-                break;
-            }
-        }
-    }
-    
-    delete [] genes;
-    delete [] possible_divider_positions;
-    delete [] dividers;
 }
 
-void LinearProgressionState::update_cache(size_t g, size_t old_pathway, size_t new_pathway)
+void LinearProgressionState::update_cache(unsigned int g, unsigned int old_pathway, unsigned int new_pathway)
 {
-    size_t n_patients = obs.size1;
-    for (size_t m = 0; m < n_patients; m++) {
-        vector<size_t> &r = _cache_counts[m];
+    unsigned int n_patients = obs.size1;
+    for (unsigned int m = 0; m < n_patients; m++) {
+        vector<unsigned int> &r = _cache_counts[m];
         double val = gsl_matrix_get(&obs, m, g);
         if (val == 1.0) {
             if (r[old_pathway] <= 0) {
@@ -139,9 +94,9 @@ void LinearProgressionState::update_cache(size_t g, size_t old_pathway, size_t n
     }
 }
 
-void LinearProgressionState::update_pathway_membership(size_t gene_idx, size_t new_pathway)
+void LinearProgressionState::update_pathway_membership(unsigned int gene_idx, unsigned int new_pathway)
 {
-    size_t old_pathway = pathway_membership[gene_idx];
+    unsigned int old_pathway = pathway_membership[gene_idx];
     pathway_membership[gene_idx] = new_pathway;
     pathways[old_pathway].erase(gene_idx);
     pathways[new_pathway].insert(gene_idx);
@@ -152,14 +107,14 @@ void LinearProgressionState::update_pathway_membership(size_t gene_idx, size_t n
     }
 }
 
-void LinearProgressionState::swap_pathways(size_t i, size_t j)
+void LinearProgressionState::swap_pathways(unsigned int i, unsigned int j)
 {
     if (i > get_num_pathways() || j > get_num_pathways()) {
         cerr << i << " or " << j << " > " << get_num_pathways() << endl;
         exit(-1);
     }
-    unordered_set<size_t> temp_i(pathways[i]);
-    unordered_set<size_t> temp_j(pathways[j]);
+    unordered_set<unsigned int> temp_i(pathways[i]);
+    unordered_set<unsigned int> temp_j(pathways[j]);
     for (auto it = temp_i.begin(); it != temp_i.end(); ++it) {
         update_pathway_membership(*it, j);
     }
@@ -168,7 +123,7 @@ void LinearProgressionState::swap_pathways(size_t i, size_t j)
     }
 }
 
-size_t LinearProgressionState::get_pathway_size(size_t k) const
+unsigned int LinearProgressionState::get_pathway_size(unsigned int k) const
 {
     if (k >= get_num_pathways()) {
         cerr << "Error: Index out of bounds. k: " << k << " num_pathways: " << get_num_pathways() << endl;
@@ -177,12 +132,17 @@ size_t LinearProgressionState::get_pathway_size(size_t k) const
     return pathways[k].size();
 }
 
-size_t LinearProgressionState::get_num_pathways() const
+unsigned int LinearProgressionState::get_num_pathways() const
 {
     if (allocate_passenger_pathway) {
         return num_driver_pathways + 1;
     }
     return num_driver_pathways;
+}
+
+unsigned int LinearProgressionState::get_n_patients() const
+{
+    return obs.size1;
 }
 
 bool LinearProgressionState::has_passenger_pathway() const
@@ -192,7 +152,7 @@ bool LinearProgressionState::has_passenger_pathway() const
 
 bool LinearProgressionState::contains_empty_driver_pathway() const
 {
-    for (size_t k = 0; k < num_driver_pathways; k++) {
+    for (unsigned int k = 0; k < num_driver_pathways; k++) {
         if (pathways[k].size() == 0) {
             return true;
         }
@@ -200,16 +160,16 @@ bool LinearProgressionState::contains_empty_driver_pathway() const
     return false;
 }
 
-void LinearProgressionState::compute_counts_for_sample(gsl_matrix &obs_matrix, vector<size_t> &row_sums, size_t m, vector<size_t> &r) const
+void LinearProgressionState::compute_counts_for_sample(const gsl_matrix &obs_matrix, const vector<unsigned int> &row_sums, unsigned int m, vector<unsigned int> &r) const
 {
     if (r.size() != get_num_pathways()) {
         cerr << "Error: return vector size does not match the number of pathways." << endl;
         exit(-1);
     }
-    size_t sum = 0;
-    for (size_t k = 0; k < num_driver_pathways; k++) {
+    unsigned int sum = 0;
+    for (unsigned int k = 0; k < num_driver_pathways; k++) {
         r[k] = 0; // reset the counts
-        for (size_t col_idx : pathways[k]) {
+        for (unsigned int col_idx : pathways[k]) {
             double val = gsl_matrix_get(&obs_matrix, m, col_idx);
             if (val == 1.0) {
                 r[k] += 1;
@@ -231,8 +191,8 @@ void LinearProgressionState::compute_counts_for_sample(gsl_matrix &obs_matrix, v
 LinearProgressionState *LinearProgressionState::LinearProgressionState::increase_num_drivers(gsl_rng *random)
 {
     LinearProgressionState *new_state = new LinearProgressionState(obs, row_sum, this->n_genes, this->num_driver_pathways + 1, this->allocate_passenger_pathway);
-    for (size_t n = 0; n < n_genes; n++) {
-        size_t pathway = this->get_pathway_membership_of(n);
+    for (unsigned int n = 0; n < n_genes; n++) {
+        unsigned int pathway = this->get_pathway_membership_of(n);
         new_state->update_pathway_membership(n, pathway);
     }
 
@@ -241,20 +201,20 @@ LinearProgressionState *LinearProgressionState::LinearProgressionState::increase
     if (new_state->get_pathway_size(this->num_driver_pathways) == 0) {
         vector<double> probs(this->num_driver_pathways, 0.0); // from one of new_K - 1 pathways, move it to the new driver pathway
         double sum = 0;
-        for (size_t k = 0; k < this->num_driver_pathways; k++) {
+        for (unsigned int k = 0; k < this->num_driver_pathways; k++) {
             if (new_state->get_pathway_size(k) >= 2) {
                 probs[k] = 1.0;
                 sum++;
             }
         }
-        for (size_t k = 0; k < this->num_driver_pathways; k++) {
+        for (unsigned int k = 0; k < this->num_driver_pathways; k++) {
             probs[k] /= sum;
         }
-        size_t k = multinomial(random, probs);
+        unsigned int k = multinomial(random, probs);
         double u = gsl_ran_flat(random, 0.0, 1.0);
         double incr = 1.0/pathways[k].size();
         sum = 0.0;
-        for (size_t g : new_state->pathways[k]) {
+        for (unsigned int g : new_state->pathways[k]) {
             if (u < sum + incr) {
                 new_state->update_pathway_membership(g, this->num_driver_pathways);
                 break;
@@ -265,12 +225,12 @@ LinearProgressionState *LinearProgressionState::LinearProgressionState::increase
     return new_state;
 }
 
-size_t LinearProgressionState::get_pathway_membership_of(size_t gene_idx) const
+unsigned int LinearProgressionState::get_pathway_membership_of(unsigned int gene_idx) const
 {
     return pathway_membership[gene_idx];
 }
 
-const vector<size_t> &LinearProgressionState::get_pathway_membership() const
+const vector<unsigned int> &LinearProgressionState::get_pathway_membership() const
 {
     return pathway_membership;
 }
@@ -278,7 +238,7 @@ const vector<size_t> &LinearProgressionState::get_pathway_membership() const
 string LinearProgressionState::to_string() const
 {
     string str = "";
-    for (size_t i = 0; i < n_genes; i++) {
+    for (unsigned int i = 0; i < n_genes; i++) {
         str += std::to_string(pathway_membership[i]);
         if (i < (n_genes - 1))
              str += ", ";
@@ -286,7 +246,7 @@ string LinearProgressionState::to_string() const
     return str;
 }
 
-const vector<size_t> &LinearProgressionState::get_cache_at(size_t m) const
+const vector<unsigned int> &LinearProgressionState::get_cache_at(unsigned int m) const
 {
     if (m >= _cache_counts.size()) {
         cerr << "Error: cache size is " << _cache_counts.size() << ", but accessing element at " << m << endl;

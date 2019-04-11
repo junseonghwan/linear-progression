@@ -14,8 +14,8 @@
 #include "lpm_likelihood.hpp"
 #include "lpm_pg_proposal.hpp"
 
-LPMParamProposal::LPMParamProposal(const gsl_matrix &obs_matrix, const vector<size_t> &row_sums, size_t n_mh_iters, double fbp_max, double bgp_max) :
-n_mh_iter(n_mh_iters), fbp_max(fbp_max), bgp_max(bgp_max), obs_matrix(obs_matrix), row_sums(row_sums)
+LPMParamProposal::LPMParamProposal(size_t n_mh_iters, double fbp_max, double bgp_max) :
+n_mh_iter(n_mh_iters), fbp_max(fbp_max), bgp_max(bgp_max)
 {
     
 }
@@ -27,14 +27,13 @@ shared_ptr<LinearProgressionParameters> LPMParamProposal::sample_from_prior(gsl_
     if (fbp_max > 0.0) {
         fbp = gsl_ran_flat(random, 0.0, fbp_max);
     }
-    //LinearProgressionParameters *new_param = new LinearProgressionParameters(fbp, bgp, *stages);
     shared_ptr<LinearProgressionParameters> ret(new LinearProgressionParameters(fbp, bgp));
     return ret;
 }
 
 void LPMParamProposal::sample_separately(gsl_rng *random, const LinearProgressionState &state, LinearProgressionParameters &new_param)
 {
-    double old_log_lik = compute_pathway_likelihood(obs_matrix, row_sums, state, new_param);
+    double old_log_lik = compute_pathway_likelihood(state, new_param);
     double old_bgp = new_param.get_bgp();
     double old_fbp = new_param.get_fbp();
     cout << "(" << old_fbp << ", " << old_bgp << ") -> ";
@@ -43,7 +42,7 @@ void LPMParamProposal::sample_separately(gsl_rng *random, const LinearProgressio
         double new_bgp = gsl_ran_gaussian(random, mh_proposal_sd) + old_bgp;
         if (new_bgp > 0 && new_bgp <= bgp_max) {
             new_param.set_bgp(new_bgp);
-            double new_log_lik = compute_pathway_likelihood(obs_matrix, row_sums, state, new_param);
+            double new_log_lik = compute_pathway_likelihood(state, new_param);
             double log_u = log(gsl_ran_flat(random, 0.0, 1.0));
             if (log_u < (new_log_lik - old_log_lik)) {
                 // accept
@@ -60,7 +59,7 @@ void LPMParamProposal::sample_separately(gsl_rng *random, const LinearProgressio
         double new_fbp = gsl_ran_gaussian(random, mh_proposal_sd) + old_fbp;
         if (new_fbp > 0 && new_fbp <= fbp_max) {
             new_param.set_fbp(new_fbp);
-            double new_log_lik = compute_pathway_likelihood(obs_matrix, row_sums, state, new_param);
+            double new_log_lik = compute_pathway_likelihood(state, new_param);
             double log_u = log(gsl_ran_flat(random, 0.0, 1.0));
             if (log_u < (new_log_lik - old_log_lik)) {
                 // accept
@@ -78,7 +77,7 @@ void LPMParamProposal::sample_separately(gsl_rng *random, const LinearProgressio
 
 void LPMParamProposal::sample_together(gsl_rng *random, const LinearProgressionState &state, LinearProgressionParameters &new_param)
 {
-    double old_log_lik = compute_pathway_likelihood(obs_matrix, row_sums, state, new_param);
+    double old_log_lik = compute_pathway_likelihood(state, new_param);
     double old_error_prob = new_param.get_bgp();
     // check:
     if (new_param.get_bgp() != new_param.get_fbp()) {
@@ -93,7 +92,7 @@ void LPMParamProposal::sample_together(gsl_rng *random, const LinearProgressionS
         if (new_error_prob > 0 && new_error_prob <= bgp_max) {
             new_param.set_bgp(new_error_prob);
             new_param.set_fbp(new_error_prob);
-            double new_log_lik = compute_pathway_likelihood(obs_matrix, row_sums, state, new_param);
+            double new_log_lik = compute_pathway_likelihood(state, new_param);
             double log_u = log(gsl_ran_flat(random, 0.0, 1.0));
             cout << "(" << new_error_prob << ", " << new_log_lik << ")" << endl;
             if (log_u < (new_log_lik - old_log_lik)) {
@@ -125,11 +124,10 @@ shared_ptr<LinearProgressionParameters> LPMParamProposal::propose(gsl_rng *rando
     }
     
     return shared_ptr<LinearProgressionParameters>(new_param);
-
 }
 
 double LPMParamProposal::log_prior(const LinearProgressionParameters &curr)
 {
-    // proportional to 0
+    // proportional to 0 (Uniform prior with support (0, fbp_max], (0, bgp_max]).
     return 0.0;
 }

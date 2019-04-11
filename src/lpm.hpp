@@ -10,6 +10,10 @@
 
 #include <gsl/gsl_matrix.h>
 
+#include "data_util.hpp"
+#include "lpm_state.hpp"
+#include "lpm_params.hpp"
+
 extern "C" {
     void run_pg(long seed,
                 const char *dat_file,
@@ -26,21 +30,20 @@ extern "C" {
                 double bgp_max);
 
     double run_smc(long seed,
-                    const char *dat_file,
-                    unsigned int model_len,
-                    unsigned int n_particles,
-                    unsigned int n_smc_iter,
-                    unsigned int n_kernel_iter,
-                    bool has_passenger,
-                    double swap_prob,
-                    double fbp,
-                    double bgp,
-                    unsigned int *states,
-                    double *log_weights);
+                   const char *dat_file,
+                   unsigned int model_len,
+                   unsigned int n_particles,
+                   unsigned int n_smc_iter,
+                   unsigned int n_kernel_iter,
+                   bool has_passenger,
+                   double swap_prob,
+                   double fbp,
+                   double bgp,
+                   unsigned int *states,
+                   double *log_weights);
     
     double model_selection(long seed,
                            const char *dat_file,
-                           //const char *output_file,
                            unsigned int model_len,
                            unsigned int n_mc_samples,
                            unsigned int n_particles,
@@ -53,7 +56,7 @@ extern "C" {
                            unsigned int n_threads,
                            double *ret_sum,
                            double *ret_smc);
-
+    
     double compute_likelihood(const char *dat_file,
                               unsigned int *pathway,
                               unsigned int model_len,
@@ -71,6 +74,21 @@ extern "C" {
                        double bgp);
 }
 
+ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_matrix(
+                        long seed,
+                        gsl_matrix *obs_matrix,
+                        unsigned int model_len,
+                        unsigned int n_pg_iter,
+                        unsigned int n_particles,
+                        unsigned int n_smc_iter,
+                        unsigned int n_kernel_iter,
+                        unsigned int n_mh_w_gibbs_iter,
+                        bool has_passenger,
+                        double swap_prob,
+                        double fbp_max,
+                        double bgp_max,
+                        const char *output_path = nullptr);
+
 double run_smc_from_matrix(long seed,
                            gsl_matrix *data_matrix,
                            unsigned int model_len,
@@ -83,21 +101,6 @@ double run_smc_from_matrix(long seed,
                            double bgp,
                            unsigned int *states,
                            double *log_weights);
-
-void run_pg_from_matrix(long seed,
-                        gsl_matrix *obs_matrix,
-                        unsigned int model_len,
-                        unsigned int n_pg_iter,
-                        unsigned int n_particles,
-                        unsigned int n_smc_iter,
-                        unsigned int n_kernel_iter,
-                        unsigned int n_mh_w_gibbs_iter,
-                        bool has_passenger,
-                        double swap_prob,
-                        double fbp_max,
-                        double bgp_max,
-                        vector<shared_ptr<ParticleGenealogy<LinearProgressionState> > > &ret_states,
-                        vector<shared_ptr<LinearProgressionParameters>> &ret_params);
 
 double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
                                       unsigned int *pathway,

@@ -26,19 +26,19 @@ enum MoveType
 
 class LinearProgressionModel : public ProblemSpecification<LinearProgressionState, LinearProgressionParameters>
 {
-    size_t num_genes;
-    size_t num_driver_pathways;
-    size_t num_smc_iter;
-    size_t num_mcmc_iter;
-    gsl_matrix &obs;
-    vector<size_t> &row_sum;
+    unsigned int num_genes;
+    unsigned int num_driver_pathways;
+    unsigned int num_smc_iter;
+    unsigned int num_mcmc_iter;
+    const gsl_matrix &obs;
+    const vector<unsigned int> &row_sum;
     double pathway_swap_prob;
     bool allocate_passenger_pathway = false;
     MoveType move_type;
 
     LinearProgressionState *initial_state = 0;
 
-    // helper variables to limit the number of times new vector/array are allocated
+    // helper variables to limit the number of times new vector/array that are allocated
     unsigned int *pathway_indices;
 
     vector<double> move_log_liks;
@@ -47,27 +47,19 @@ class LinearProgressionModel : public ProblemSpecification<LinearProgressionStat
     vector<double> gibbs_log_liks;
     vector<double> gibbs_probs;
     
-    // cache likelihood calculation
-    double cached_bgp, cached_fbp;
-    unordered_map<size_t, unordered_map<size_t, double> > _dict_active_probs;
-    unordered_map<size_t, unordered_map<size_t, double> > _dict_inactive_probs;
-    void initialize_likelihood_table(LinearProgressionParameters &params);
-    bool update_cache(LinearProgressionParameters &params);
-    //void construct_likelihood_tables(LinearProgressionParameters &params);
-    
-    double get_temperature(size_t t);
+    double get_temperature(unsigned int t);
     void swap_pathway_move(gsl_rng *random, LinearProgressionState &state, LinearProgressionParameters &params);
     void mh_kernel(gsl_rng *random, LinearProgressionState &curr, LinearProgressionParameters &params);
     void gibbs_kernel(gsl_rng *random, int t, LinearProgressionState &curr, LinearProgressionParameters &params);
     
 public:
 
-    LinearProgressionModel(size_t num_genes,
-                           size_t num_driver_pathways,
-                           size_t num_iter,
-                           size_t num_mcmc_iter,
-                           gsl_matrix &obs,
-                           vector<size_t> &row_sum,
+    LinearProgressionModel(unsigned int num_genes,
+                           unsigned int num_driver_pathways,
+                           unsigned int num_iter,
+                           unsigned int num_mcmc_iter,
+                           const gsl_matrix &obs,
+                           const vector<unsigned int> &row_sum,
                            double pathway_swap_prob,
                            bool allocate_passenger_pathway,
                            MoveType move_type);
