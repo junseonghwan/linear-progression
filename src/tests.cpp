@@ -347,7 +347,7 @@ void test_posterior()
 
     long seed;
     double error_max = 0.2;
-    unsigned int num_reps = 2;
+    unsigned int num_reps = 20;
     unsigned int n_pathways = 3;
     unsigned int n_patients = 200;
     unsigned int n_genes = 5;
