@@ -2,6 +2,10 @@ include_directories(/usr/local/include/ ${OPENMP_CXX_INCLUDE_DIRS} /home/seongju
 
 file( GLOB SRCS *.cpp *.hpp)
 
+#set (Boost_USE_STATIC_LIBS OFF)
+#add_definitions(-DBOOST_ALL_NO_LIB)
+#add_definitions(-BOOST_ALL_DYN_LINK)
+
 # create executable file
 #add_executable(lpm ${SRCS})
 # add tests
