@@ -24,8 +24,22 @@ enum MoveType
     MH
 };
 
+namespace std {
+    template<>
+    struct hash<LinearProgressionState>
+    {
+        std::size_t operator()(const LinearProgressionState& key) const
+        {
+            size_t hash_key = hash<string>()(key.to_string());
+            return hash_key;
+        }
+    };
+}
+
 class LinearProgressionModel : public ProblemSpecification<LinearProgressionState, LinearProgressionParameters>
 {
+    double alpha = 0.5; // mixture proportion
+    
     unsigned int num_genes;
     unsigned int num_driver_pathways;
     unsigned int num_smc_iter;
@@ -34,24 +48,15 @@ class LinearProgressionModel : public ProblemSpecification<LinearProgressionStat
     const vector<unsigned int> &row_sum;
     double pathway_swap_prob;
     bool allocate_passenger_pathway = false;
-    MoveType move_type;
 
-    LinearProgressionState *initial_state = 0;
+    unordered_map<LinearProgressionState, double, hash<LinearProgressionState> > *prev_pop = 0;
 
     // helper variables to limit the number of times new vector/array that are allocated
     unsigned int *pathway_indices;
 
-    vector<double> move_log_liks;
-    vector<double> move_probs;
-
-    vector<double> gibbs_log_liks;
-    vector<double> gibbs_probs;
-    
     double get_temperature(unsigned int t);
-    void swap_pathway_move(gsl_rng *random, LinearProgressionState &state, LinearProgressionParameters &params);
-    void mh_kernel(gsl_rng *random, LinearProgressionState &curr, LinearProgressionParameters &params);
-    void gibbs_kernel(gsl_rng *random, int t, LinearProgressionState &curr, LinearProgressionParameters &params);
-    
+    void mh_kernel(gsl_rng *random, double t, LinearProgressionState &curr, LinearProgressionParameters &params);
+    double log_weight_helper(unsigned int t, const LinearProgressionState &state, const LinearProgressionParameters &params, bool recompute_log_lik);
 public:
 
     LinearProgressionModel(unsigned int num_genes,
@@ -61,13 +66,12 @@ public:
                            const gsl_matrix &obs,
                            const vector<unsigned int> &row_sum,
                            double pathway_swap_prob,
-                           bool allocate_passenger_pathway,
-                           MoveType move_type);
-    void set_initial_state(gsl_rng *random, LinearProgressionState *prev_state);
-    unsigned long num_iterations();
-    shared_ptr<LinearProgressionState> propose_initial(gsl_rng *random, double &log_w, LinearProgressionParameters &params);
-    shared_ptr<LinearProgressionState> propose_next(gsl_rng *random, unsigned int t, const LinearProgressionState &curr, double &log_w, LinearProgressionParameters &params);
-    double log_weight(unsigned int t, const LinearProgressionState &curr, const LinearProgressionParameters &params);
+                           bool allocate_passenger_pathway);
+    unsigned long num_iterations() override;
+    shared_ptr<LinearProgressionState> propose_initial(gsl_rng *random, double &log_w, LinearProgressionParameters &params) override;
+    shared_ptr<LinearProgressionState> propose_next(gsl_rng *random, unsigned int t, const LinearProgressionState &curr, double &log_w, LinearProgressionParameters &params) override;
+    double log_weight(unsigned int t, const shared_ptr<ParticleGenealogy<LinearProgressionState> > &genealogy, const LinearProgressionParameters &params) override;
+    void set_particle_population(const vector<vector<shared_ptr<LinearProgressionState> > > &particles, const vector<vector<double> > &log_weights, const vector<double> &log_norms) override;
     ~LinearProgressionModel();
     
 };

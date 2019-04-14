@@ -42,7 +42,6 @@ class LinearProgressionState
     void update_cache(unsigned int g, unsigned int old_pathway, unsigned int new_pathway);
 
 public:
-    //LinearProgressionState(unsigned int n_genes, unsigned int num_driver_pathways, bool allocate_passenger_pathway);
     LinearProgressionState(const gsl_matrix &obs, const vector<unsigned int> &row_sums, unsigned int n_genes, unsigned int num_driver_pathways, bool allocate_passenger_pathway);
     void sample_from_prior(gsl_rng *random);
     void sample_min_valid_pathway(gsl_rng *random);
@@ -67,6 +66,11 @@ public:
     LinearProgressionState *increase_num_drivers(gsl_rng *random);
     string to_string() const;
 
+    inline bool operator==(const LinearProgressionState& other) const
+    {
+        return (this->to_string() == other.to_string());
+    }
+    
     ~LinearProgressionState();
 };
 

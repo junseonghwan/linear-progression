@@ -27,7 +27,8 @@ extern "C" {
                 bool has_passenger,
                 double swap_prob,
                 double fbp_max,
-                double bgp_max);
+                double bgp_max,
+                double mh_proposal_sd);
 
     double run_smc(long seed,
                    const char *dat_file,
@@ -87,6 +88,9 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
                         double swap_prob,
                         double fbp_max,
                         double bgp_max,
+                        vector<double> *fbps = 0,
+                        vector<double> *bgps = 0,
+                        double mh_proposal_sd = 0.05,
                         const char *output_path = nullptr);
 
 double run_smc_from_matrix(long seed,

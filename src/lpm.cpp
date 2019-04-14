@@ -37,7 +37,8 @@ void run_pg(long seed,
             bool has_passenger,
             double swap_prob,
             double fbp_max,
-            double bgp_max)
+            double bgp_max,
+            double mh_proposal_sd)
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
@@ -52,7 +53,7 @@ void run_pg(long seed,
         exit(-1);
     }
 
-    run_pg_from_matrix(seed, obs_matrix, model_len, n_pg_iter, n_particles, n_smc_iter, n_kernel_iter, n_mh_w_gibbs_iter, has_passenger, swap_prob, fbp_max, bgp_max, output_path);
+    run_pg_from_matrix(seed, obs_matrix, model_len, n_pg_iter, n_particles, n_smc_iter, n_kernel_iter, n_mh_w_gibbs_iter, has_passenger, swap_prob, fbp_max, bgp_max, 0, 0, mh_proposal_sd, output_path);
 
     delete obs_matrix;
 }
@@ -70,9 +71,11 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
                                                                                       double swap_prob,
                                                                                       double fbp_max,
                                                                                       double bgp_max,
+                                                                                      vector<double> *fbps,
+                                                                                      vector<double> *bgps,
+                                                                                      double mh_proposal_sd,
                                                                                       const char *output_path)
 {
-    string move_type_str = "MH";
     unsigned int n_patients = obs_matrix->size1;
     unsigned int n_genes = obs_matrix->size2;
 
@@ -96,14 +99,14 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
     cout << "\tFBP max: " << fbp_max << endl;
     cout << "\tBGP max: " << bgp_max << endl;
     cout << "}" << endl;
-    
+
     // compute the row sum for each patient
     vector<unsigned int> row_sum(n_patients);
     compute_row_sum(*obs_matrix, row_sum);
-    
+
     // allocate random object
     gsl_rng *random = generate_random_object(seed);
-    
+
     // smc options
     SMCOptions smc_options;
     smc_options.num_particles = n_particles;
@@ -114,18 +117,15 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
 
     // pmcmc options
     PMCMCOptions pmcmc_options(gsl_rng_get(random), n_pg_iter);
-    
-    // set Markov kernel move type
-    MoveType kernel_move_type = move_type_str == "GIBBS" ? MoveType::GIBBS : MoveType::MH;
-    
+
     // LPM model proposal
-    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, kernel_move_type);
+    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger);
 
     // Declare conditional SMC object
     ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
 
     // Declare param proposal object
-    LPMParamProposal pg_proposal(n_mh_w_gibbs_iter, fbp_max, bgp_max);
+    LPMParamProposal pg_proposal(n_mh_w_gibbs_iter, fbp_max, bgp_max, mh_proposal_sd);
 
     // Initialize PG object
     ParticleGibbs<LinearProgressionState, LinearProgressionParameters> pg(pmcmc_options, csmc, pg_proposal);
@@ -141,6 +141,12 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
         // output the states and parameters
         string output_path_str(output_path, strlen(output_path));
         write_pg_output(output_path_str, pg, pg_proposal);
+    }
+    if (fbps != 0) {
+        *fbps = pg_proposal.get_fbps();
+    }
+    if (bgps != 0) {
+        *bgps = pg_proposal.get_bgps();
     }
     return pg;
     
@@ -223,12 +229,8 @@ double run_smc_from_matrix(long seed,
     smc_options.main_seed = gsl_rng_get(random);
     smc_options.resampling_seed = gsl_rng_get(random);
 
-    // set Markov kernel move type
-    string move_type_str = "MH"; // later, provide GIBBS as an option
-    MoveType kernel_move_type = move_type_str == "GIBBS" ? MoveType::GIBBS : MoveType::MH;
-
     // LPM model proposal
-    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, kernel_move_type);
+    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger);
 
     // Construct LPMParam object
     LinearProgressionParameters param(fbp, bgp);
@@ -258,6 +260,10 @@ double run_smc_from_matrix(long seed,
             }
         }
     }
+    
+    for (size_t i = 0; i < n_smc_iter; i++) {
+        cout << "Z" << i << ": " << (smc.get_log_norm(i) - log(n_particles)) << endl;
+    }
 
     return smc.get_log_marginal_likelihood();
     
@@ -281,7 +287,6 @@ double model_selection(long seed,
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
-    string move_type_str = "MH"; // later, provide GIBBS as an option
     
     // load the data
     gsl_matrix *obs_matrix = read_csv(dat_file_str, false);
@@ -311,9 +316,6 @@ double model_selection(long seed,
     vector<unsigned int> row_sum(n_patients);
     compute_row_sum(*obs_matrix, row_sum);
     
-    // set Markov kernel move type
-    MoveType kernel_move_type = move_type_str == "GIBBS" ? MoveType::GIBBS : MoveType::MH;
-
     // allocate random object
     gsl_rng *random = generate_random_object(seed);
     
@@ -341,7 +343,7 @@ double model_selection(long seed,
         smc_options.resampling_seed = resampling_seeds[n];
 
         // LPM model proposal
-        LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, kernel_move_type);
+        LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger);
 
         // Declare conditional SMC object
         ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);

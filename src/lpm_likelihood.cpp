@@ -28,6 +28,9 @@ double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes)
 
 double log_pathway_prior(const LinearProgressionState &pathway, unsigned int n_genes)
 {
+    if (pathway.contains_empty_driver_pathway()) {
+        return DOUBLE_NEG_INF;
+    }
     unsigned int n_pathways = pathway.get_num_pathways();
     double log_prior = 0.0;
     for (unsigned int k = 0; k < pathway.get_num_pathways(); k++) {
