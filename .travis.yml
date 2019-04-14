@@ -25,3 +25,6 @@ script:
   - cmake ..
   - make
   - ctest -V
+branches:
+  only:
+  - master
