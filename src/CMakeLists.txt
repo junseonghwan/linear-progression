@@ -2,8 +2,6 @@ include_directories(/usr/local/include/ ${OPENMP_CXX_INCLUDE_DIRS} /home/seongju
 
 file( GLOB SRCS *.cpp *.hpp)
 
-# create executable file
-#add_executable(lpm ${SRCS})
 # add tests
 add_executable(tests ${SRCS})
 add_test(Tester tests)
