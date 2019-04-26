@@ -43,7 +43,7 @@ class LinearProgressionState
 
 public:
     LinearProgressionState(const gsl_matrix &obs, const vector<unsigned int> &row_sums, unsigned int n_genes, unsigned int num_driver_pathways, bool allocate_passenger_pathway);
-    void sample_from_prior(gsl_rng *random);
+    void sample_pathway(gsl_rng *random);
     void sample_min_valid_pathway(gsl_rng *random);
     void swap_pathways(unsigned int pathway1, unsigned int pathway2);
     void update_pathway_membership(unsigned int gene_idx, unsigned int new_pathway);
@@ -73,5 +73,18 @@ public:
     
     ~LinearProgressionState();
 };
+
+namespace std {
+    template<>
+    struct hash<LinearProgressionState>
+    {
+        std::size_t operator()(const LinearProgressionState& key) const
+        {
+            size_t hash_key = hash<string>()(key.to_string());
+            return hash_key;
+        }
+    };
+}
+
 
 #endif /* lpm_state_hpp */

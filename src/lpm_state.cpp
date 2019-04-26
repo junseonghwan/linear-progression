@@ -47,7 +47,7 @@ void LinearProgressionState::sample_min_valid_pathway(gsl_rng *random)
 {
     if (!allocate_passenger_pathway) {
         // no passenger pathway, just sample from prior
-        sample_from_prior(random);
+        sample_pathway(random);
         return;
     }
 
@@ -67,10 +67,10 @@ void LinearProgressionState::sample_min_valid_pathway(gsl_rng *random)
     delete [] genes;
 }
 
-void LinearProgressionState::sample_from_prior(gsl_rng *random)
+void LinearProgressionState::sample_pathway(gsl_rng *random)
 {
     vector<unsigned int> new_pathway_membership(n_genes);
-    sample_pathway_from_prior(random, get_num_pathways(), new_pathway_membership);
+    propose_pathway(random, get_num_pathways(), new_pathway_membership);
 
     for (unsigned int g = 0; g < n_genes; g++) {
         update_pathway_membership(g, new_pathway_membership[g]);

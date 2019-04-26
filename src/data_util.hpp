@@ -49,7 +49,7 @@ void write_matrix_as_csv(string path, const gsl_matrix &data);
 // data simulation functions
 // sample a pathway into ret_pathway
 // note: ret_pathway.size() == n_genes
-void sample_pathway_from_prior(gsl_rng *random, unsigned int n_pathways, vector<unsigned int> &ret_pathway);
+void propose_pathway(gsl_rng *random, unsigned int n_pathways, vector<unsigned int> &ret_pathway);
 // sample a patient progression stage into ret_stages
 // note: ret_stages.size() == n_patients
 void sample_stages_uniform(gsl_rng *random, unsigned int n_pathways, vector<unsigned int> &ret_stages);

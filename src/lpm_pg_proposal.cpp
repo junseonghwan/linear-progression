@@ -15,7 +15,7 @@
 #include "lpm_pg_proposal.hpp"
 
 LPMParamProposal::LPMParamProposal(size_t n_mh_iters, double fbp_max, double bgp_max, double mh_proposal_sd) :
-n_mh_iter(n_mh_iters), fbp_max(fbp_max), bgp_max(bgp_max), mh_proposal_sd(mh_proposal_sd)
+n_mh_iter(n_mh_iters), fbp_max(fbp_max), bgp_max(bgp_max), mh_proposal_sd_fbp(mh_proposal_sd), mh_proposal_sd_bgp(mh_proposal_sd)
 {
     
 }
@@ -34,13 +34,18 @@ shared_ptr<LinearProgressionParameters> LPMParamProposal::sample_from_prior(gsl_
 
 void LPMParamProposal::sample_separately(gsl_rng *random, const LinearProgressionState &state, LinearProgressionParameters &new_param)
 {
+    if (bgps.size() < 100) {
+        mh_proposal_sd_bgp = new_param.get_bgp()/2;
+        mh_proposal_sd_fbp = new_param.get_fbp()/2;
+    }
+
     double old_log_lik = compute_pathway_likelihood(state, new_param);
     double old_bgp = new_param.get_bgp();
     double old_fbp = new_param.get_fbp();
     cout << "(" << old_fbp << ", " << old_bgp << ") -> ";
 
     for (size_t i = 0; i < n_mh_iter; i++) {
-        double new_bgp = gsl_ran_gaussian(random, mh_proposal_sd) + old_bgp;
+        double new_bgp = gsl_ran_gaussian(random, mh_proposal_sd_bgp) + old_bgp;
         if (new_bgp > 0 && new_bgp <= bgp_max) {
             new_param.set_bgp(new_bgp);
             double new_log_lik = compute_pathway_likelihood(state, new_param);
@@ -57,7 +62,7 @@ void LPMParamProposal::sample_separately(gsl_rng *random, const LinearProgressio
         bgps.push_back(old_bgp);
     }
     for (size_t i = 0; i < n_mh_iter; i++) {
-        double new_fbp = gsl_ran_gaussian(random, mh_proposal_sd) + old_fbp;
+        double new_fbp = gsl_ran_gaussian(random, mh_proposal_sd_fbp) + old_fbp;
         if (new_fbp > 0 && new_fbp <= fbp_max) {
             new_param.set_fbp(new_fbp);
             double new_log_lik = compute_pathway_likelihood(state, new_param);
@@ -78,6 +83,10 @@ void LPMParamProposal::sample_separately(gsl_rng *random, const LinearProgressio
 
 void LPMParamProposal::sample_together(gsl_rng *random, const LinearProgressionState &state, LinearProgressionParameters &new_param)
 {
+    if (bgps.size() < 100) {
+        mh_proposal_sd_bgp = new_param.get_bgp()/2;
+    }
+
     double old_log_lik = compute_pathway_likelihood(state, new_param);
     double old_error_prob = new_param.get_bgp();
     // check:
@@ -89,7 +98,7 @@ void LPMParamProposal::sample_together(gsl_rng *random, const LinearProgressionS
 
     for (size_t i = 0; i < n_mh_iter; i++) {
         cout << "(" << new_param.get_fbp() << ", " << old_log_lik << ")" << endl;
-        double new_error_prob = gsl_ran_gaussian(random, mh_proposal_sd) + old_error_prob;
+        double new_error_prob = gsl_ran_gaussian(random, mh_proposal_sd_bgp) + old_error_prob;
         if (new_error_prob > 0 && new_error_prob <= bgp_max) {
             new_param.set_bgp(new_error_prob);
             new_param.set_fbp(new_error_prob);

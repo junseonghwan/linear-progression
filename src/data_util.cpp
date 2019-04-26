@@ -321,9 +321,11 @@ void write_pg_output(string path,
     // write log marginals
     log_marginal_file << "FBP, BGP, LogMarginal" << endl;
     for (unsigned int i = 0; i < log_marginals.size(); i++) {
-        log_marginal_file << params[i].get()->get_fbp() << ", " << params[i].get()->get_bgp() << ", " << log_marginals[i] << endl;
+        log_marginal_file << params[i].get()->get_fbp() << ", " << params[i].get()->get_bgp() << ", " << to_string(log_marginals[i]) << endl;
     }
     log_marginal_file.close();
+    cout << "Finished writing data!" << endl;
+
 }
 
 void write_vector(string path, vector<unsigned int> data)
@@ -375,7 +377,7 @@ void compute_row_sum(const gsl_matrix &obs, vector<unsigned int> &row_sum)
     }
 }
 
-void sample_pathway_from_prior(gsl_rng *random, unsigned int num_pathways, vector<unsigned int> &ret_pathway)
+void propose_pathway(gsl_rng *random, unsigned int num_pathways, vector<unsigned int> &ret_pathway)
 {
     unsigned int n_genes = ret_pathway.size();
     unsigned int num_divider_locations = n_genes - 1;

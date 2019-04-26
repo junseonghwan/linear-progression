@@ -22,7 +22,8 @@ class LPMParamProposal : public PGProposal<LinearProgressionState, LinearProgres
     size_t n_mh_iter;
     double fbp_max;
     double bgp_max;
-    double mh_proposal_sd = 0.05;
+    double mh_proposal_sd_fbp = 0.05;
+    double mh_proposal_sd_bgp = 0.05;
 
     void sample_separately(gsl_rng *random, const LinearProgressionState &state, LinearProgressionParameters &new_param);
     void sample_together(gsl_rng *random, const LinearProgressionState &state, LinearProgressionParameters &new_param);

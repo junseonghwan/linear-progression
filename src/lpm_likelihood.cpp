@@ -26,7 +26,7 @@ double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes)
     return -log(f[n_pathways-1]);
 }
 
-double log_pathway_prior(const LinearProgressionState &pathway, unsigned int n_genes)
+double log_pathway_proposal(const LinearProgressionState &pathway, unsigned int n_genes)
 {
     if (pathway.contains_empty_driver_pathway()) {
         return DOUBLE_NEG_INF;
@@ -41,7 +41,7 @@ double log_pathway_prior(const LinearProgressionState &pathway, unsigned int n_g
     return log_prior;
 }
 
-double log_pathway_prior(const vector<unsigned int> &pathway, unsigned int n_pathways)
+double log_pathway_proposal(const vector<unsigned int> &pathway, unsigned int n_pathways)
 {
     unsigned int n_genes = pathway.size();
     unsigned int *pathway_sizes = new unsigned int[n_pathways];
@@ -64,7 +64,7 @@ double log_pathway_prior(const vector<unsigned int> &pathway, unsigned int n_pat
 }
 
 
-double compute_log_lik_active(double n_mutations, double pathway_size, double bgp, double fbp)
+double compute_log_lik_active(unsigned int n_mutations, double pathway_size, double bgp, double fbp)
 {
     if (pathway_size <= 0) {
         // this is not in the support set
@@ -117,7 +117,7 @@ double compute_log_lik_active(double n_mutations, double pathway_size, double bg
     return log_lik;
 }
 
-double compute_log_lik_inactive(double n_mutations, double pathway_size, double bgp)
+double compute_log_lik_inactive(unsigned int n_mutations, double pathway_size, double bgp)
 {
     // all mutations are background mutations
     double log_lik = n_mutations * log(bgp);
@@ -163,24 +163,24 @@ double compute_pathway_likelihood(const LinearProgressionState &state,
     double log_lik = 0.0;
 
     unsigned int n_obs = state.get_n_patients();
-    unsigned int n_pathways = state.get_num_pathways(); // number of driver pathways
-    double log_n_pathways = log(n_pathways);
+    unsigned int n_driver_pathways = state.get_num_driver_pathways();
+    double log_n_driver_pathways = log(n_driver_pathways);
     if (state.contains_empty_driver_pathway()) {
         return DOUBLE_NEG_INF;
     }
-    
+
     //marginalize out stages for each patient
     for (unsigned int m = 0; m < n_obs; m++) {
         const vector<unsigned int> &ret = state.get_cache_at(m);
         double log_lik_stage = compute_likelihood_for_sample(ret, state, 0, params.get_bgp(), params.get_fbp());
-        double log_lik_m = log_lik_stage - log_n_pathways; // -log_n_pathways accounts for prior on stage assignment: (1/n_pathways)
+        double log_lik_m = log_lik_stage - log_n_driver_pathways; // -log_n_driver_pathways accounts for prior on stage assignment: (1/n_pathways)
         // marginalize over patient stages taking on {1, ..., driver pathways}
         for (unsigned int stage = 1; stage < state.get_num_driver_pathways(); stage++) {
             unsigned int pathway_size = state.get_pathway_size(stage);
             unsigned int r = ret[stage];
             log_lik_stage += compute_log_lik_active(r, pathway_size, params.get_bgp(), params.get_fbp());
             log_lik_stage -= compute_log_lik_inactive(r, pathway_size, params.get_bgp());
-            log_lik_m = log_add(log_lik_m, log_lik_stage - log_n_pathways);
+            log_lik_m = log_add(log_lik_m, log_lik_stage - log_n_driver_pathways);
         }
         log_lik += log_lik_m;
     }

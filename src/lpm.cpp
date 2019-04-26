@@ -25,6 +25,20 @@
 
 using namespace std;
 
+void run_mcmc(long seed,
+              const char *dat_file,
+              const char *output_path,
+              unsigned int *initial_state,
+              unsigned int n_mcmc_iter,
+              double swap_prob,
+              double fbp_max,
+              double bgp_max,
+              double mh_proposal_sd)
+{
+    // run MH on the states and params
+    
+}
+
 void run_pg(long seed,
             const char *dat_file,
             const char *output_path,
@@ -42,7 +56,7 @@ void run_pg(long seed,
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
-    
+
     // load the data
     gsl_matrix *obs_matrix = read_csv(dat_file_str, false);
     unsigned int n_genes = obs_matrix->size2;
@@ -119,7 +133,7 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
     PMCMCOptions pmcmc_options(gsl_rng_get(random), n_pg_iter);
 
     // LPM model proposal
-    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger);
+    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, false);
 
     // Declare conditional SMC object
     ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
@@ -164,7 +178,8 @@ double run_smc(long seed,
                 double fbp,
                 double bgp,
                 unsigned int *states,
-                double *log_weights)
+                double *log_weights,
+                bool is_lik_tempered)
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
@@ -187,7 +202,7 @@ double run_smc(long seed,
     cout << "\tBGP: " << bgp << endl;
     cout << "}" << endl;
 
-    return run_smc_from_matrix(seed, obs_matrix, model_len, n_particles, n_smc_iter, n_kernel_iter, has_passenger, swap_prob, fbp, bgp, states, log_weights);
+    return run_smc_from_matrix(seed, obs_matrix, model_len, n_particles, n_smc_iter, n_kernel_iter, has_passenger, swap_prob, fbp, bgp, states, log_weights, is_lik_tempered);
     
     delete obs_matrix;
 }
@@ -203,7 +218,8 @@ double run_smc_from_matrix(long seed,
                            double fbp,
                            double bgp,
                            unsigned int *states,
-                           double *log_weights)
+                           double *log_weights,
+                           bool is_lik_tempered)
 {
     unsigned int n_patients = obs_matrix->size1;
     unsigned int n_genes = obs_matrix->size2;
@@ -230,7 +246,7 @@ double run_smc_from_matrix(long seed,
     smc_options.resampling_seed = gsl_rng_get(random);
 
     // LPM model proposal
-    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger);
+    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, is_lik_tempered);
 
     // Construct LPMParam object
     LinearProgressionParameters param(fbp, bgp);
@@ -261,9 +277,9 @@ double run_smc_from_matrix(long seed,
         }
     }
     
-    for (size_t i = 0; i < n_smc_iter; i++) {
-        cout << "Z" << i << ": " << (smc.get_log_norm(i) - log(n_particles)) << endl;
-    }
+//    for (size_t i = 0; i < n_smc_iter; i++) {
+//        cout << "Z" << i << ": " << (smc.get_log_norm(i) - log(n_particles)) << endl;
+//    }
 
     return smc.get_log_marginal_likelihood();
     
@@ -343,7 +359,7 @@ double model_selection(long seed,
         smc_options.resampling_seed = resampling_seeds[n];
 
         // LPM model proposal
-        LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger);
+        LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, 0, *obs_matrix, row_sum, swap_prob, has_passenger, false);
 
         // Declare conditional SMC object
         ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
@@ -368,7 +384,7 @@ double model_selection(long seed,
                 const LinearProgressionState &state = csmc.get_state(r, i);
                 string key = state.to_string();
                 if (unique_states.count(key) == 0) {
-                    log_prior = log_pathway_prior(state, n_genes);
+                    log_prior = log_pathway_proposal(state, n_genes);
                     log_marginals[n] = log_add(log_marginals[n], state.get_log_lik() + log_prior);
                     unique_states.insert(key);
                 }
@@ -416,7 +432,7 @@ double compute_likelihood(const char *dat_file,
 
 double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
                                       unsigned int *pathway,
-                                      unsigned int model_len,
+                                      unsigned int n_drivers,
                                       unsigned int n_genes,
                                       bool has_passenger,
                                       double fbp,
@@ -435,7 +451,7 @@ double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
     compute_row_sum(*obs_matrix, row_sum);
 
     // construct LPState from the pathway
-    LinearProgressionState state(*obs_matrix, row_sum, n_genes, model_len, has_passenger);
+    LinearProgressionState state(*obs_matrix, row_sum, n_genes, n_drivers, has_passenger);
     for (unsigned int i = 0; i < n_genes; i++) {
         state.update_pathway_membership(i, pathway[i]);
     }
@@ -465,7 +481,7 @@ void generate_data(long seed,
     vector<unsigned int> true_pathway(n_genes);
     
     sample_stages_uniform(random, model_len, stages);
-    sample_pathway_from_prior(random, model_len, true_pathway);
+    propose_pathway(random, model_len, true_pathway);
     gsl_matrix *data_matrix = simulate_data(random, model_len, true_pathway, stages);
 
     // output: stages, pathway, parameters, data matrix before contamination

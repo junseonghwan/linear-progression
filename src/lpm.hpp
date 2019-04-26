@@ -41,8 +41,9 @@ extern "C" {
                    double fbp,
                    double bgp,
                    unsigned int *states,
-                   double *log_weights);
-    
+                   double *log_weights,
+                   bool is_lik_tempered = false);
+
     double model_selection(long seed,
                            const char *dat_file,
                            unsigned int model_len,
@@ -104,7 +105,8 @@ double run_smc_from_matrix(long seed,
                            double fbp,
                            double bgp,
                            unsigned int *states,
-                           double *log_weights);
+                           double *log_weights,
+                           bool is_lik_tempered = false);
 
 double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
                                       unsigned int *pathway,
