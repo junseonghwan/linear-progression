@@ -447,6 +447,7 @@ int main()
     cout << "Exec dir: " <<  curr_path.string() << endl;
     // when running locally (for debugging) provide path specific to your local computer
     string data_path = "../../data/test";
+    string data_path2 = "../../data/test/error0.001/";
     //string data_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/test";
     //string data_path2 = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/test/error0.001/";
 
