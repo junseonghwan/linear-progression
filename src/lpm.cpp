@@ -25,20 +25,6 @@
 
 using namespace std;
 
-void run_mcmc(long seed,
-              const char *dat_file,
-              const char *output_path,
-              unsigned int *initial_state,
-              unsigned int n_mcmc_iter,
-              double swap_prob,
-              double fbp_max,
-              double bgp_max,
-              double mh_proposal_sd)
-{
-    // run MH on the states and params
-    
-}
-
 void run_pg(long seed,
             const char *dat_file,
             const char *output_path,
@@ -52,7 +38,8 @@ void run_pg(long seed,
             double swap_prob,
             double fbp_max,
             double bgp_max,
-            double mh_proposal_sd)
+            double mh_proposal_sd,
+            bool use_lik_tempering)
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
@@ -67,7 +54,7 @@ void run_pg(long seed,
         exit(-1);
     }
 
-    run_pg_from_matrix(seed, obs_matrix, model_len, n_pg_iter, n_particles, n_smc_iter, n_kernel_iter, n_mh_w_gibbs_iter, has_passenger, swap_prob, fbp_max, bgp_max, 0, 0, mh_proposal_sd, output_path);
+    run_pg_from_matrix(seed, obs_matrix, model_len, n_pg_iter, n_particles, n_smc_iter, n_kernel_iter, n_mh_w_gibbs_iter, has_passenger, swap_prob, fbp_max, bgp_max, 0, 0, mh_proposal_sd, use_lik_tempering, output_path);
 
     delete obs_matrix;
 }
@@ -88,6 +75,7 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
                                                                                       vector<double> *fbps,
                                                                                       vector<double> *bgps,
                                                                                       double mh_proposal_sd,
+                                                                                      bool use_lik_tempering,
                                                                                       const char *output_path)
 {
     unsigned int n_patients = obs_matrix->size1;
@@ -133,7 +121,7 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
     PMCMCOptions pmcmc_options(gsl_rng_get(random), n_pg_iter);
 
     // LPM model proposal
-    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, false);
+    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
 
     // Declare conditional SMC object
     ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
@@ -179,7 +167,7 @@ double run_smc(long seed,
                 double bgp,
                 unsigned int *states,
                 double *log_weights,
-                bool is_lik_tempered)
+                bool use_lik_tempering)
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
@@ -202,7 +190,7 @@ double run_smc(long seed,
     cout << "\tBGP: " << bgp << endl;
     cout << "}" << endl;
 
-    return run_smc_from_matrix(seed, obs_matrix, model_len, n_particles, n_smc_iter, n_kernel_iter, has_passenger, swap_prob, fbp, bgp, states, log_weights, is_lik_tempered);
+    return run_smc_from_matrix(seed, obs_matrix, model_len, n_particles, n_smc_iter, n_kernel_iter, has_passenger, swap_prob, fbp, bgp, states, log_weights, use_lik_tempering);
     
     delete obs_matrix;
 }
@@ -219,7 +207,7 @@ double run_smc_from_matrix(long seed,
                            double bgp,
                            unsigned int *states,
                            double *log_weights,
-                           bool is_lik_tempered)
+                           bool use_lik_tempering)
 {
     unsigned int n_patients = obs_matrix->size1;
     unsigned int n_genes = obs_matrix->size2;
@@ -246,7 +234,7 @@ double run_smc_from_matrix(long seed,
     smc_options.resampling_seed = gsl_rng_get(random);
 
     // LPM model proposal
-    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, is_lik_tempered);
+    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
 
     // Construct LPMParam object
     LinearProgressionParameters param(fbp, bgp);
