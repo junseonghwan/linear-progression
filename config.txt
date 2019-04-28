@@ -1,6 +1,6 @@
 seed: 1
 model_len: 2-10
-n_mc_samples: 40
+n_mc_samples: 30
 n_pg_iter: 50
 n_particles: 200
 n_smc_iter: 100

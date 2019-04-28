@@ -46,7 +46,10 @@ bgp_max = float(configs["bgp_max"])
 mh_proposal_sd = float(configs["mh_proposal_sd"])
 n_threads = int(configs["n_threads"])
 data_path = os.path.abspath(configs["data_path"])
-use_lik_tempering = bool(configs["use_lik_tempering"])
+# ignore the config file
+# 1. use likelihood tempering for model selection
+# 2. do not use likelihood tempering for PG
+#use_lik_tempering = bool(configs["use_lik_tempering"])
 true_model_len = 5
 
 _seed = ctypes.c_long(seed)
@@ -62,7 +65,6 @@ _fbp_max = ctypes.c_double(fbp_max)
 _bgp_max = ctypes.c_double(bgp_max)
 _n_threads = ctypes.c_uint(n_threads)
 _mh_proposal_sd = ctypes.c_double(mh_proposal_sd)
-_use_lik_tempering = ctypes.c_bool(use_lik_tempering)
 _true_model_len = ctypes.c_uint(true_model_len)
 
 # configs["data_path"] contains directories labelled: rep[0-9]+
@@ -79,7 +81,10 @@ for rep in range(rep_begin, rep_end+1):
     auto_pg_output_path = rep_path + "pg_auto/"
 
     # run model selection
-    if exp_type is "model":
+    if exp_type == "model":
+        use_lik_tempering = True
+        _use_lik_tempering = ctypes.c_bool(use_lik_tempering)
+
         bgps = functions.generate_stratified_samples(bgp_max, n_mc_samples)
         if fbp_max > 0.0:
             fbps = functions.generate_stratified_samples(fbp_max, n_mc_samples)
@@ -113,32 +118,34 @@ for rep in range(rep_begin, rep_end+1):
         dat = np.concatenate(log_marginals_matrix, axis=0)
         log_marginals_file = model_selection_output_path + "log_marginals.csv"
         np.savetxt(fname=log_marginals_file, X=dat, fmt="%d,%f,%f,%f, %f", header="Model,FBP,BGP,MarginalLogLikSum,MarginalLogLikSMC")
-        sys.exit(0)
+    elif exp_type == "pg":
+        # check if model selection has been completed
+        if os.path.exists(model_selection_output_path):
+            # read fhat.csv
+            fhats = np.genfromtxt(model_selection_output_path + "/fhat.csv", delimiter=",")
+            best_model_len = int(fhats[np.argmax(fhats[:,1]),0])
+            _best_model_len = ctypes.c_uint(best_model_len)
 
-    # check if model selection has been completed
-    if os.path.exists(model_selection_output_path):
-        # read fhat.csv
-        fhats = np.genfromtxt(model_selection_output_path + "/fhat.csv", delimiter=",")
-        best_model_len = int(fhats[np.argmax(fhats[:,1]),0])
-        _best_model_len = ctypes.c_uint(best_model_len)
+            use_lik_tempering = False
+            _use_lik_tempering = ctypes.c_bool(use_lik_tempering)
 
-        # 2. run PG using the best model len
-        best_model_len = int(fhats[np.argmax(fhats[:,1]),0])
-        _auto_pg_output_path = ctypes.create_string_buffer(auto_pg_output_path.encode())
+            # 2. run PG using the best model len
+            best_model_len = int(fhats[np.argmax(fhats[:,1]),0])
+            _auto_pg_output_path = ctypes.create_string_buffer(auto_pg_output_path.encode())
 
-        if not os.path.exists(auto_pg_output_path):
-            os.makedirs(auto_pg_output_path)
+            if not os.path.exists(auto_pg_output_path):
+                os.makedirs(auto_pg_output_path)
 
-        lpm_lib.run_pg(_seed, _input_path, _auto_pg_output_path, _best_model_len, _n_pg_iter, 
-                        _n_particles, _n_smc_iter, _n_kernel_iter, _n_mh_w_gibbs_iter,
-                        _has_passenger, _swap_prob, _fbp_max, _bgp_max, _mh_proposal_sd)
-
-        # 3. run PG using the true model len if necessary
-        if best_model_len != true_model_len:
-            _pg_true_output_path = ctypes.create_string_buffer(pg_output_path.encode())
-            if not os.path.exists(pg_output_path):
-                os.makedirs(pg_output_path)
-
-            lpm_lib.run_pg(_seed, _input_path, _pg_true_output_path, _true_model_len, _n_pg_iter, 
+            lpm_lib.run_pg(_seed, _input_path, _auto_pg_output_path, _best_model_len, _n_pg_iter, 
                             _n_particles, _n_smc_iter, _n_kernel_iter, _n_mh_w_gibbs_iter,
-                            _has_passenger, _swap_prob, _fbp_max, _bgp_max, _mh_proposal_sd)
+                            _has_passenger, _swap_prob, _fbp_max, _bgp_max, _mh_proposal_sd, _use_lik_tempering)
+
+            # 3. run PG using the true model len if necessary
+            if best_model_len != true_model_len:
+                _pg_true_output_path = ctypes.create_string_buffer(pg_output_path.encode())
+                if not os.path.exists(pg_output_path):
+                    os.makedirs(pg_output_path)
+
+                lpm_lib.run_pg(_seed, _input_path, _pg_true_output_path, _true_model_len, _n_pg_iter, 
+                                _n_particles, _n_smc_iter, _n_kernel_iter, _n_mh_w_gibbs_iter,
+                                _has_passenger, _swap_prob, _fbp_max, _bgp_max, _mh_proposal_sd, _use_lik_tempering)
