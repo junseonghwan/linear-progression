@@ -44,6 +44,10 @@ extern "C" {
                    double *log_weights,
                    bool is_lik_tempered = false);
 
+    // input fbps and bgps, the parameters to use
+    // log_marginal_sum[n]: sum estimation
+    // log_marginal_smc[n]: SMC estimation
+    // return value: 
     double model_selection(long seed,
                            const char *dat_file,
                            unsigned int model_len,
@@ -56,9 +60,10 @@ extern "C" {
                            const double *fbps,
                            const double *bgps,
                            unsigned int n_threads,
-                           double *ret_sum,
-                           double *ret_smc);
-    
+                           double *log_marginal_sum,
+                           double *log_marginal_smc,
+                           bool use_lik_tempering = false);
+
     double compute_likelihood(const char *dat_file,
                               unsigned int *pathway,
                               unsigned int model_len,
@@ -66,7 +71,7 @@ extern "C" {
                               bool has_passenger,
                               double fbp,
                               double bgp);
-    
+
     void generate_data(long seed,
                        const char *output_path,
                        unsigned int n_patients,

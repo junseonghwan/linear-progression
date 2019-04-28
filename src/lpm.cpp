@@ -298,8 +298,9 @@ double model_selection(long seed,
                        const double *fbps,
                        const double *bgps,
                        unsigned int n_threads,
-                       double *ret_sum,
-                       double *ret_smc)
+                       double *log_marginal_sum,
+                       double *log_marginal_smc,
+                       bool use_lik_tempering)
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
@@ -335,15 +336,16 @@ double model_selection(long seed,
     // allocate random object
     gsl_rng *random = generate_random_object(seed);
     
-    // generate seeds and parameters
+    // generate seeds for SMC
     vector<long> main_seeds, resampling_seeds;
     for (unsigned int i = 0; i < n_mc_samples; i++) {
         main_seeds.push_back(gsl_rng_get(random));
         resampling_seeds.push_back(gsl_rng_get(random));
     }
     
+    double log_prior = log_pathway_uniform_prior(model_len, n_genes);
     vector<double> log_marginals(n_mc_samples);
-    vector<double> smc_log_marginals(n_mc_samples);
+
     auto start = std::chrono::high_resolution_clock::now();
     
     printf("n_unique_states, fbp, bgp, log_marginal_sum, log_marginal_smc\n");
@@ -359,7 +361,7 @@ double model_selection(long seed,
         smc_options.resampling_seed = resampling_seeds[n];
 
         // LPM model proposal
-        LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, 0, *obs_matrix, row_sum, swap_prob, has_passenger, false);
+        LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, 0, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
 
         // Declare conditional SMC object
         ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
@@ -369,39 +371,39 @@ double model_selection(long seed,
 
         // run SMC
         csmc.initialize(param);
-        
+
         // get log marginal estimate from SMC
-        if (ret_smc != 0) {
-            ret_smc[n] = csmc.get_log_marginal_likelihood();
+        if (log_marginal_smc != 0) {
+            log_marginal_smc[n] = csmc.get_log_marginal_likelihood();
         }
 
         // enumerate over all particles that was ever generated to approximate \sum_x p(y | x, \theta)
         unordered_set<string> unique_states;
         log_marginals[n] = DOUBLE_NEG_INF;
-        double log_prior = 0.0;
         for (unsigned int r = 0; r < n_smc_iter; r++) {
             for (unsigned int i = 0; i < n_particles; i++) {
                 const LinearProgressionState &state = csmc.get_state(r, i);
                 string key = state.to_string();
                 if (unique_states.count(key) == 0) {
-                    log_prior = log_pathway_proposal(state, n_genes);
-                    log_marginals[n] = log_add(log_marginals[n], state.get_log_lik() + log_prior);
+                    log_marginals[n] = log_add(log_marginals[n], state.get_log_lik());
                     unique_states.insert(key);
                 }
             }
         }
-        if (ret_sum != 0) {
-            ret_sum[n] = log_marginals[n];
+
+        log_marginals[n] += log_prior;
+        if (log_marginal_sum != 0) {
+            log_marginal_sum[n] = log_marginals[n];
         }
 
-        printf("%zd, %f, %f, %f, %f\n", unique_states.size(), fbps[n], bgps[n], log_marginals[n], ret_smc[n]);
+        printf("%zd, %f, %f, %f, %f\n", unique_states.size(), fbps[n], bgps[n], log_marginals[n], log_marginal_smc[n]);
     }
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     cout << elapsed.count() << " seconds elapsed." <<  endl;
 
     // combine log_marginals to approximate:
-    // \int_{\theta} \sum_x p(y|x, k, \theta) p(x|k) p(\theta) d(\theta)
+    // log(fhat) = \int_{\theta} \sum_x p(y|x, k, \theta) p(x|k) p(\theta) d(\theta)
     double log_f_hat = DOUBLE_NEG_INF;
     for (unsigned int n = 0; n < n_mc_samples; n++) {
         log_f_hat = log_add(log_f_hat, log_marginals[n]);
