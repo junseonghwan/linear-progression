@@ -24,16 +24,16 @@ curr_dir = os.getcwd()
 
 seed = 1
 n_mc_samples = 50
-n_particles = 200
-n_genes = 25
-n_smc_iter = 2*n_genes
-n_kernel_iter = 1
-has_passenger = False
+n_particles = 100
+n_genes = 100
+n_smc_iter = n_genes
+n_kernel_iter = 5
+has_passenger = True
 swap_prob = 0.2
 error_prob_max = 0.1
 n_threads = 8
 true_model_len = 5
-rep = 26
+rep = 0
 
 _seed = ctypes.c_long(seed)
 _n_mc_samples = ctypes.c_uint(n_mc_samples)
@@ -46,7 +46,7 @@ _n_threads = ctypes.c_uint(n_threads)
 _n_genes = ctypes.c_uint(n_genes)
 _true_model_len = ctypes.c_uint(true_model_len)
 
-data_path = curr_dir + "/data/raphael/25genes/error0.05/rep" + str(rep) + "/"
+data_path = curr_dir + "/data/Experiment1/With_passengers/Uniform/error0.001/rep" + str(rep) + "/"
 input_path = data_path + "matrix.csv"
 true_pathway_file = data_path + "generative_mem_mat.csv"
 true_param_file = data_path + "parameters.csv"
@@ -65,13 +65,14 @@ pathway_matrix = np.genfromtxt(true_pathway_file, delimiter=',')
 true_pathway = np.int32(np.argmax(pathway_matrix, axis=1))
 _true_pathway = np.ctypeslib.as_ctypes(true_pathway)
 
-true_param_file = data_path + "parameters.csv"
 true_params = np.genfromtxt(true_param_file, delimiter=',')
 
 _particles = (ctypes.c_uint * (n_particles * n_genes))()
 _log_weights = (ctypes.c_double * n_particles)()
-_fbp = ctypes.c_double(true_params[0])
-_bgp = ctypes.c_double(true_params[1])
+#_fbp = ctypes.c_double(true_params[0])
+#_bgp = ctypes.c_double(true_params[1])
+_fbp = ctypes.c_double(0.1)
+_bgp = ctypes.c_double(0.1)
 logZ = lpm_lib.run_smc(_seed, _input_path, _true_model_len, _n_particles, _n_smc_iter, 
                         _n_kernel_iter, _has_passenger, _swap_prob, _fbp, _bgp, 
                         _particles, _log_weights)
@@ -80,18 +81,22 @@ logZ = lpm_lib.run_smc(_seed, _input_path, _true_model_len, _n_particles, _n_smc
 particles = np.reshape(np.ctypeslib.as_array(_particles), newshape=[n_particles, n_genes])
 log_weights = np.reshape(np.ctypeslib.as_array(_log_weights), newshape=[n_particles, 1])
 log_norm = logsumexp(log_weights)
+best_log_lik = -1000000
 for i in range(n_particles):
     particle = particles[i,:]
     _particle = np.ctypeslib.as_ctypes(np.int32(particle))
     a = np.sum(np.abs(particle - true_pathway))
     b = np.exp(log_weights[i] - log_norm)
-    print(particles[i,:])
-    print(a)
-    print(b)
     log_lik = lpm_lib.compute_likelihood(_input_path, _particle, _true_model_len, 
                                             _n_genes, _has_passenger, _fbp, _bgp)
     print("loglik: " + str(log_lik))
+    if log_lik > best_log_lik:
+        best_log_lik = log_lik
+        print(particles[i,:])
+        print(a)
+        print(b)
 
+print("======")
 print(true_pathway)
 log_lik = lpm_lib.compute_likelihood(_input_path, _true_pathway, _true_model_len, 
                                             _n_genes, _has_passenger, _fbp, _bgp)
