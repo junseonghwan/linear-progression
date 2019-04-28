@@ -13,7 +13,7 @@ rep_end = int(sys.argv[4])
 
 key_list = ["seed", "model_len", "n_mc_samples", "n_pg_iter", "n_particles", "n_smc_iter", "n_kernel_iter", 
             "n_mh_w_gibbs_iter", "has_passenger", "swap_prob", "fbp_max", "bgp_max", "mh_proposal_sd", 
-            "n_threads", "data_path", "use_lik_tempering"]
+            "n_threads", "data_path"]
 
 configs = functions.parse_config(config_file)
 if not functions.check_configs(configs, key_list):
@@ -46,11 +46,11 @@ bgp_max = float(configs["bgp_max"])
 mh_proposal_sd = float(configs["mh_proposal_sd"])
 n_threads = int(configs["n_threads"])
 data_path = os.path.abspath(configs["data_path"])
-# ignore the config file
+true_model_len = 5
+# note: use_lik_tempering option in the config file will be ignored
 # 1. use likelihood tempering for model selection
 # 2. do not use likelihood tempering for PG
 #use_lik_tempering = bool(configs["use_lik_tempering"])
-true_model_len = 5
 
 _seed = ctypes.c_long(seed)
 _n_mc_samples = ctypes.c_uint(n_mc_samples)
