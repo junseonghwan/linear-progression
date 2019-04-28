@@ -6,7 +6,7 @@
 //
 
 #include <assert.h>
-#include <math.h>
+#include <cmath>
 #include <numeric>
 #include <iostream>
 #include <list>

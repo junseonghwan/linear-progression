@@ -6,7 +6,7 @@
 //
 
 #include <iostream>
-#include <math.h>
+#include <cmath>
 #include <gsl/gsl_randist.h>
 #include <spf/numerical_utils.hpp>
 #include <spf/sampling_utils.hpp>
