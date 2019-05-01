@@ -39,7 +39,8 @@ void run_pg(long seed,
             double fbp_max,
             double bgp_max,
             double mh_proposal_sd,
-            bool use_lik_tempering)
+            bool use_lik_tempering,
+            unsigned int n_threads)
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
@@ -54,7 +55,7 @@ void run_pg(long seed,
         exit(-1);
     }
 
-    run_pg_from_matrix(seed, obs_matrix, model_len, n_pg_iter, n_particles, n_smc_iter, n_kernel_iter, n_mh_w_gibbs_iter, has_passenger, swap_prob, fbp_max, bgp_max, 0, 0, mh_proposal_sd, use_lik_tempering, output_path);
+    run_pg_from_matrix(seed, obs_matrix, model_len, n_pg_iter, n_particles, n_smc_iter, n_kernel_iter, n_mh_w_gibbs_iter, has_passenger, swap_prob, fbp_max, bgp_max, 0, 0, mh_proposal_sd, use_lik_tempering, output_path, n_threads);
 
     delete obs_matrix;
 }
@@ -76,7 +77,8 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
                                                                                       vector<double> *bgps,
                                                                                       double mh_proposal_sd,
                                                                                       bool use_lik_tempering,
-                                                                                      const char *output_path)
+                                                                                      const char *output_path,
+                                                                                      unsigned int n_threads)
 {
     unsigned int n_patients = obs_matrix->size1;
     unsigned int n_genes = obs_matrix->size2;
@@ -116,6 +118,7 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
     smc_options.resample_last_round = false;
     smc_options.main_seed = gsl_rng_get(random);
     smc_options.resampling_seed = gsl_rng_get(random);
+    smc_options.num_threads = n_threads;
 
     // pmcmc options
     PMCMCOptions pmcmc_options(gsl_rng_get(random), n_pg_iter);
@@ -167,7 +170,8 @@ double run_smc(long seed,
                 double bgp,
                 unsigned int *states,
                 double *log_weights,
-                bool use_lik_tempering)
+                bool use_lik_tempering,
+                unsigned int n_threads)
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
@@ -190,7 +194,7 @@ double run_smc(long seed,
     cout << "\tBGP: " << bgp << endl;
     cout << "}" << endl;
 
-    return run_smc_from_matrix(seed, obs_matrix, model_len, n_particles, n_smc_iter, n_kernel_iter, has_passenger, swap_prob, fbp, bgp, states, log_weights, use_lik_tempering);
+    return run_smc_from_matrix(seed, obs_matrix, model_len, n_particles, n_smc_iter, n_kernel_iter, has_passenger, swap_prob, fbp, bgp, states, log_weights, use_lik_tempering, n_threads);
     
     delete obs_matrix;
 }
@@ -207,7 +211,8 @@ double run_smc_from_matrix(long seed,
                            double bgp,
                            unsigned int *states,
                            double *log_weights,
-                           bool use_lik_tempering)
+                           bool use_lik_tempering,
+                           unsigned int n_threads)
 {
     unsigned int n_patients = obs_matrix->size1;
     unsigned int n_genes = obs_matrix->size2;
@@ -232,6 +237,7 @@ double run_smc_from_matrix(long seed,
     smc_options.resample_last_round = false;
     smc_options.main_seed = gsl_rng_get(random);
     smc_options.resampling_seed = gsl_rng_get(random);
+    smc_options.num_threads = n_threads;
 
     // LPM model proposal
     LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
@@ -347,6 +353,7 @@ double model_selection(long seed,
         smc_options.resample_last_round = false;
         smc_options.main_seed = main_seeds[n];
         smc_options.resampling_seed = resampling_seeds[n];
+        smc_options.num_threads = 1;
 
         // LPM model proposal
         LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, 0, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
@@ -475,10 +482,10 @@ void generate_data(long seed,
     gsl_matrix *data_matrix = simulate_data(random, model_len, true_pathway, stages);
 
     // output: stages, pathway, parameters, data matrix before contamination
-    string stages_file = output_path_str + "/stages.csv";
-    string pathway_file = output_path_str + "/true_pathways.csv";
+    string stages_file = output_path_str + "/patient_stages.csv";
+    string pathway_file = output_path_str + "/generative_mem_mat.csv";
     string clean_matrix_file = output_path_str + "/clean_matrix.csv";
-    string data_matrix_file = output_path_str + "/data_matrix.csv";
+    string data_matrix_file = output_path_str + "/matrix.csv";
 
     write_vector(stages_file, stages);
     write_vector(pathway_file, true_pathway);

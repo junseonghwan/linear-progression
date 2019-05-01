@@ -29,7 +29,8 @@ extern "C" {
                 double fbp_max,
                 double bgp_max,
                 double mh_proposal_sd,
-                bool use_lik_tempering = false);
+                bool use_lik_tempering = false,
+                unsigned int n_threads = 4);
 
     double run_smc(long seed,
                    const char *dat_file,
@@ -43,7 +44,8 @@ extern "C" {
                    double bgp,
                    unsigned int *states,
                    double *log_weights,
-                   bool use_lik_tempering = false);
+                   bool use_lik_tempering = false,
+                   unsigned int n_threads = 4);
 
     // input fbps and bgps, the parameters to use
     // log_marginal_sum[n]: sum estimation
@@ -99,7 +101,8 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
                         vector<double> *bgps = 0,
                         double mh_proposal_sd = 0.05,
                         bool use_lik_tempering = false,
-                        const char *output_path = nullptr);
+                        const char *output_path = nullptr,
+                        unsigned int n_threads = 4);
 
 double run_smc_from_matrix(long seed,
                            gsl_matrix *data_matrix,
@@ -113,7 +116,8 @@ double run_smc_from_matrix(long seed,
                            double bgp,
                            unsigned int *states,
                            double *log_weights,
-                           bool use_lik_tempering = false);
+                           bool use_lik_tempering = false,
+                           unsigned int n_threads = 4);
 
 double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
                                       unsigned int *pathway,
