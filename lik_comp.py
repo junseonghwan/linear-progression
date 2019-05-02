@@ -13,7 +13,7 @@ lpm_lib.compute_likelihood.restype = ctypes.c_double
 
 curr_dir = os.getcwd()
 
-rep = 0
+rep = 2
 data_path = curr_dir + "/data/Experiment1/With_passengers/Uniform/error0.001/rep" + str(rep) + "/"
 input_path = data_path + "matrix.csv"
 _input_path = ctypes.create_string_buffer(input_path.encode())
@@ -32,20 +32,10 @@ _n_genes = ctypes.c_uint(n_genes)
 has_passenger = True
 _has_passenger = ctypes.c_bool(has_passenger)
 
-bgp = 0.000985
-fbp = 0.000985
+bgp = 0.001
+fbp = 0.001
 _bgp = ctypes.c_double(bgp)
 _fbp = ctypes.c_double(fbp)
 
 log_lik = lpm_lib.compute_likelihood(_input_path, _true_pathway, _model_len, _n_genes, _has_passenger, _fbp, _bgp)
 print(log_lik)
-
-# load states and compute likelihood
-states_file = data_path + "pg/states.csv"
-states = np.genfromtxt(states_file, delimiter=',')
-#print(states)
-for t in range(100):
-    state = np.int32(states[t,])
-    _state = np.ctypeslib.as_ctypes(state)
-    log_lik = lpm_lib.compute_likelihood(_input_path, _state, _model_len, _n_genes, _has_passenger, _fbp, _bgp)
-    print(log_lik)

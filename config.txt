@@ -2,7 +2,7 @@ seed: 1
 model_len: 2-10
 n_mc_samples: 30
 n_pg_iter: 30
-n_particles: 1000
+n_particles: 500
 n_smc_iter: 100
 n_kernel_iter: 5
 n_mh_w_gibbs_iter: 10
@@ -11,6 +11,6 @@ swap_prob: 0.1
 fbp_max: 0
 bgp_max: 0.2
 mh_proposal_sd: 0.05
-n_threads: 6
+n_threads: 10
 use_lik_tempering: True
 data_path: data/Experiment1/With_passengers/Uniform/error0.001/
