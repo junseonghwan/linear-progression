@@ -5,6 +5,9 @@ import os
 import platform
 import sys
 import functions
+import time
+import hashlib
+from shutil import copyfile
 
 config_file = sys.argv[1]
 exp_type = sys.argv[2] # options: model, pg
@@ -105,15 +108,22 @@ for rep in range(rep_begin, rep_end+1):
             log_marginals_smc = np.ctypeslib.as_array(_log_marginals_smc)
             log_marginals_matrix.append(np.column_stack((np.repeat(model_len, n_mc_samples), fbps, bgps, log_marginal, log_marginals_smc)))
 
-        if not os.path.exists(model_selection_output_path):
-            os.makedirs(model_selection_output_path)
+        curr_time_in_millis = str(time.time).encode("utf-8")
+        dir_name = hashlib.sha1(curr_time_in_millis).hexdigest()
+        output_path = model_selection_output_path + "/" + dir_name
 
-        fhat_file = model_selection_output_path + "fhat.csv"
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+
+        fhat_file = output_path + "/fhat.csv"
         np.savetxt(fname=fhat_file, X=fhats, fmt="%d,%f", header="Model,f")
 
         dat = np.concatenate(log_marginals_matrix, axis=0)
-        log_marginals_file = model_selection_output_path + "log_marginals.csv"
+        log_marginals_file = output_path + "/log_marginals.csv"
         np.savetxt(fname=log_marginals_file, X=dat, fmt="%d,%f,%f,%f, %f", header="Model,FBP,BGP,MarginalLogLikSum,MarginalLogLikSMC")
+
+        # copy the config file to the output_path
+        copyfile(config_file, output_path + "/" + config_file)
     elif exp_type == "pg":
         # check if model selection has been completed
         if os.path.exists(model_selection_output_path):
