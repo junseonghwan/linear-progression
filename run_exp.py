@@ -108,8 +108,8 @@ for rep in range(rep_begin, rep_end+1):
             log_marginals_smc = np.ctypeslib.as_array(_log_marginals_smc)
             log_marginals_matrix.append(np.column_stack((np.repeat(model_len, n_mc_samples), fbps, bgps, log_marginal, log_marginals_smc)))
 
-        curr_time_in_millis = str(time.time).encode("utf-8")
-        dir_name = hashlib.sha1(curr_time_in_millis).hexdigest()
+        curr_time = str(time.time()).encode("utf-8")
+        dir_name = hashlib.sha1(curr_time).hexdigest()
         output_path = model_selection_output_path + "/" + dir_name
 
         if not os.path.exists(output_path):
