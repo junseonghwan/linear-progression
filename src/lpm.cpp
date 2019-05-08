@@ -343,7 +343,7 @@ double model_selection(long seed,
     auto start = std::chrono::high_resolution_clock::now();
     
     printf("n_unique_states, fbp, bgp, log_marginal_sum, log_marginal_smc\n");
-    omp_set_num_threads(n_threads);
+    omp_set_num_threads(1);
 #pragma omp parallel for
     for (unsigned int n = 0; n < n_mc_samples; n++) {
         // smc options
@@ -353,7 +353,7 @@ double model_selection(long seed,
         smc_options.resample_last_round = false;
         smc_options.main_seed = main_seeds[n];
         smc_options.resampling_seed = resampling_seeds[n];
-        smc_options.num_threads = 1;
+        smc_options.num_threads = n_threads;
 
         // LPM model proposal
         LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, 0, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
