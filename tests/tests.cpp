@@ -19,6 +19,7 @@
 #include <gsl/gsl_cdf.h>
 #include <gsl/gsl_randist.h>
 
+#include "lpm.hpp"
 #include "lpm_likelihood.hpp"
 
 using namespace std;

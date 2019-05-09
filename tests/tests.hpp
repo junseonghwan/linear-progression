@@ -8,8 +8,6 @@
 #ifndef tests_hpp
 #define tests_hpp
 
-#include "lpm.hpp"
-
 const double ERR_TOL = 1e-3;
 const double LIKELIHOOD_ERR_TOL = 1e-4;
 const double SMC_MARGINAL_ERR_TOL = 1e-2;
