@@ -27,7 +27,7 @@ class LinearProgressionState
     // MxK
     // element (i, j): number of mutations for patient i in pathway j for the current state
     // this cache gets updated when gene membership changes
-    vector<vector<unsigned int> > _cache_counts;
+    vector<vector<unsigned short> > _cache_counts;
 
     unsigned int n_genes = 0;
     unsigned int num_driver_pathways = 0;
@@ -38,7 +38,7 @@ class LinearProgressionState
     void initialize_pathways();
     
     const gsl_matrix &obs;
-    const vector<unsigned int> &row_sum;
+    //const vector<unsigned int> &row_sum;
     void update_cache(unsigned int g, unsigned int old_pathway, unsigned int new_pathway);
 
 public:
@@ -48,7 +48,7 @@ public:
     void swap_pathways(unsigned int pathway1, unsigned int pathway2);
     void update_pathway_membership(unsigned int gene_idx, unsigned int new_pathway);
     
-    void compute_counts_for_sample(const gsl_matrix &obs, const vector<unsigned int> &row_sums, unsigned int m, vector<unsigned int> &ret) const;
+    void compute_counts_for_sample(const gsl_matrix &obs, const vector<unsigned int> &row_sums, unsigned int m, vector<unsigned short> &ret) const;
     unsigned int get_pathway_size(unsigned int k) const;
     unsigned int get_num_pathways() const;
     unsigned int get_n_patients() const;
@@ -58,12 +58,12 @@ public:
     const vector<unsigned int> &get_pathway_membership() const;
     bool contains_empty_driver_pathway() const;
     bool has_passenger_pathway() const;
-    const vector<unsigned int> &get_cache_at(unsigned int m) const;
+    const vector<unsigned short> &get_cache_at(unsigned int m) const;
 
     inline void set_num_driver_pathways(unsigned int K) { this->num_driver_pathways = K; }
     inline void set_log_lik(double log_lik) { this->log_lik = log_lik; }
 
-    LinearProgressionState *increase_num_drivers(gsl_rng *random);
+    //LinearProgressionState *increase_num_drivers(gsl_rng *random);
     string to_string() const;
 
     inline bool operator==(const LinearProgressionState& other) const

@@ -23,13 +23,13 @@ double log_pathway_proposal(const LinearProgressionState &pathway, unsigned int 
 double log_pathway_proposal(const vector<unsigned int> &pathway, unsigned int n_pathways);
 
 // compute log likelihood for a given number of mutations given pathway size and error probabilities
-double compute_log_lik_active(unsigned int n_mutations, double pathway_size, double bgp, double fbp);
-double compute_log_lik_inactive(unsigned int n_mutations, double pathway_size, double bgp);
-double compute_likelihood_for_sample(const vector<unsigned int> &r,
-                                     vector<unsigned int> &pathway_sizes,
-                                     unsigned int stage,
-                                     double bgp, double fbp);
-double compute_likelihood_for_sample(const vector<unsigned int> &r,
+double compute_log_lik_active(unsigned int n_mutations, unsigned int pathway_size, double bgp, double fbp);
+double compute_log_lik_inactive(unsigned int n_mutations, unsigned int pathway_size, double bgp);
+//double compute_likelihood_for_sample(const vector<unsigned short> &r,
+//                                     vector<unsigned int> &pathway_sizes,
+//                                     unsigned int stage,
+//                                     double bgp, double fbp);
+double compute_likelihood_for_sample(const vector<unsigned short> &r,
                                      const LinearProgressionState &state,
                                      unsigned int stage,
                                      double bgp, double fbp);

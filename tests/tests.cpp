@@ -461,14 +461,7 @@ int main()
     // implement Geweke test instead. postpone posterior test until then.
     //test_posterior(); // this takes about 5 minutes depending on the hardware
 
-    // for pilot run
-    //char *data_path_exp = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Uniform/error0.001/rep0/matrix.csv";
-    //char *output_path_exp = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Uniform/error0.001/rep0/pg/";
-    //unsigned int *states = new unsigned int[200*100];
-    //double *log_weights = new double[200];
-    //run_smc(1, data_path_exp, 5, 200, 100, 0, true, 0.1, 0.001, 0.001, states, log_weights);
-    //run_pg(17, data_path_exp, output_path_exp, 5, 100, 200, 100, 5, 10, true, 0.1, 0.0, 0.3, 0.05);
-    //run_pg(1, data_path_exp, output_path_exp, 5, 30, 200, 100, 5, 10, true, 0.1, 0.0, 0.3, 0.01);
+    // TODO: write a test for main.cpp
 
     return 0;
 }

@@ -155,6 +155,8 @@ void LinearProgressionModel::rw_move(gsl_rng *random, double t, LinearProgressio
     
     double new_log_lik = compute_pathway_likelihood(curr, params);
     curr.set_log_lik(new_log_lik);
+    
+    delete [] pathways_to_swap;
 }
 
 void LinearProgressionModel::mh_kernel(gsl_rng *random, double t, LinearProgressionState &state, LinearProgressionParameters &params)
@@ -207,6 +209,8 @@ void LinearProgressionModel::mh_kernel(gsl_rng *random, double t, LinearProgress
             state.set_log_lik(prev_log_lik);
         }
     }
+    
+    delete [] pathways_to_swap;
 }
 
 void LinearProgressionModel::set_particle_population(const vector<vector<shared_ptr<LinearProgressionState> > > &particles, const vector<vector<double> > &log_weights, const vector<double> &log_norms)

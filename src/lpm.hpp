@@ -119,6 +119,21 @@ double run_smc_from_matrix(long seed,
                            bool use_lik_tempering = false,
                            unsigned int n_threads = 4);
 
+double model_selection(long seed,
+                       const char *dat_file,
+                       const char *output_path,
+                       unsigned int model_len,
+                       unsigned int n_mc_samples,
+                       unsigned int n_particles,
+                       unsigned int n_smc_iter,
+                       unsigned int n_kernel_iter,
+                       bool has_passenger,
+                       double swap_prob,
+                       const double *fbps,
+                       const double *bgps,
+                       unsigned int n_threads,
+                       bool use_lik_tempering = false);
+
 double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
                                       unsigned int *pathway,
                                       unsigned int model_len,

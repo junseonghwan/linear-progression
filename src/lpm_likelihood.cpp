@@ -64,7 +64,7 @@ double log_pathway_proposal(const vector<unsigned int> &pathway, unsigned int n_
 }
 
 
-double compute_log_lik_active(unsigned int n_mutations, double pathway_size, double bgp, double fbp)
+double compute_log_lik_active(unsigned int n_mutations, unsigned int pathway_size, double bgp, double fbp)
 {
     if (pathway_size <= 0) {
         // this is not in the support set
@@ -117,7 +117,7 @@ double compute_log_lik_active(unsigned int n_mutations, double pathway_size, dou
     return log_lik;
 }
 
-double compute_log_lik_inactive(unsigned int n_mutations, double pathway_size, double bgp)
+double compute_log_lik_inactive(unsigned int n_mutations, unsigned int pathway_size, double bgp)
 {
     // all mutations are background mutations
     double log_lik = n_mutations * log(bgp);
@@ -125,7 +125,7 @@ double compute_log_lik_inactive(unsigned int n_mutations, double pathway_size, d
     return log_lik;
 }
 
-double compute_likelihood_for_sample(const vector<unsigned int> &r, const LinearProgressionState &state, unsigned int stage, double bgp, double fbp)
+double compute_likelihood_for_sample(const vector<unsigned short> &r, const LinearProgressionState &state, unsigned int stage, double bgp, double fbp)
 {
     double log_lik = 0.0;
     unsigned int K = state.get_num_pathways();
@@ -171,7 +171,7 @@ double compute_pathway_likelihood(const LinearProgressionState &state,
 
     //marginalize out stages for each patient
     for (unsigned int m = 0; m < n_obs; m++) {
-        const vector<unsigned int> &ret = state.get_cache_at(m);
+        const vector<unsigned short> &ret = state.get_cache_at(m);
         double log_lik_stage = compute_likelihood_for_sample(ret, state, 0, params.get_bgp(), params.get_fbp());
         double log_lik_m = log_lik_stage - log_n_driver_pathways; // -log_n_driver_pathways accounts for prior on stage assignment: (1/n_pathways)
         // marginalize over patient stages taking on {1, ..., driver pathways}

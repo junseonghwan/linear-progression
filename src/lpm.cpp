@@ -116,6 +116,7 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
     smc_options.num_particles = n_particles;
     smc_options.ess_threshold = 1.0;
     smc_options.resample_last_round = false;
+    smc_options.csmc_set_partile_population = true;
     smc_options.main_seed = gsl_rng_get(random);
     smc_options.resampling_seed = gsl_rng_get(random);
     smc_options.num_threads = n_threads;
@@ -153,9 +154,8 @@ ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_m
     if (bgps != 0) {
         *bgps = pg_proposal.get_bgps();
     }
+    gsl_rng_free(random);
     return pg;
-    
-    delete random;
 }
 
 double run_smc(long seed,
@@ -343,6 +343,7 @@ double model_selection(long seed,
     auto start = std::chrono::high_resolution_clock::now();
     
     printf("n_unique_states, fbp, bgp, log_marginal_sum, log_marginal_smc\n");
+
     omp_set_num_threads(n_threads);
 #pragma omp parallel for
     for (unsigned int n = 0; n < n_mc_samples; n++) {
@@ -351,12 +352,14 @@ double model_selection(long seed,
         smc_options.num_particles = n_particles;
         smc_options.ess_threshold = 1.0;
         smc_options.resample_last_round = false;
+        smc_options.debug = false;
+        smc_options.csmc_set_partile_population = false;
         smc_options.main_seed = main_seeds[n];
         smc_options.resampling_seed = resampling_seeds[n];
         smc_options.num_threads = 1;
 
         // LPM model proposal
-        LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, 0, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
+        LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
 
         // Declare conditional SMC object
         ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
@@ -390,8 +393,6 @@ double model_selection(long seed,
         if (log_marginal_sum != 0) {
             log_marginal_sum[n] = log_marginals[n];
         }
-
-        printf("%zd, %f, %f, %f, %f\n", unique_states.size(), fbps[n], bgps[n], log_marginals[n], log_marginal_smc[n]);
     }
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
@@ -408,6 +409,41 @@ double model_selection(long seed,
     
     delete obs_matrix;
     delete random;
+}
+
+double model_selection(long seed,
+                       const char *dat_file,
+                       const char *output_path,
+                       unsigned int model_len,
+                       unsigned int n_mc_samples,
+                       unsigned int n_particles,
+                       unsigned int n_smc_iter,
+                       unsigned int n_kernel_iter,
+                       bool has_passenger,
+                       double swap_prob,
+                       const double *fbps,
+                       const double *bgps,
+                       unsigned int n_threads,
+                       bool use_lik_tempering)
+{
+    double *log_marginal_sum = new double[n_mc_samples];
+    double *log_marginal_smc = new double[n_mc_samples];
+    double fhat = model_selection(seed, dat_file, model_len, n_mc_samples, n_particles, n_smc_iter, n_kernel_iter, has_passenger, swap_prob, fbps, bgps, n_threads, log_marginal_sum, log_marginal_smc);
+    
+    // output log_marginal_sum, log_marginal_smc
+    // model_len, fbps[i], bgps[i], lgo_marginal_sum[i], log_marginal_smc[i]
+    gsl_matrix *mat = gsl_matrix_alloc(n_mc_samples, 5);
+    for (size_t i = 0; i < n_mc_samples; i++) {
+        gsl_matrix_set(mat, i, 0, model_len);
+        gsl_matrix_set(mat, i, 1, fbps[i]);
+        gsl_matrix_set(mat, i, 2, bgps[i]);
+        gsl_matrix_set(mat, i, 3, log_marginal_sum[i]);
+        gsl_matrix_set(mat, i, 4, log_marginal_smc[i]);
+    }
+    write_matrix_as_csv(output_path, *mat);
+    gsl_matrix_free(mat);
+
+    return fhat;
 }
 
 double compute_likelihood(const char *dat_file,

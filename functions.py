@@ -26,3 +26,7 @@ def generate_stratified_samples(max_val, num_samples):
             end = strata[i+1]
         ret_list.append(np.random.uniform(low=begin, high=end, size=1)[0])
     return np.asarray(ret_list)
+
+def add_cmd(cmd, option, val):
+    cmd.append(option)
+    cmd.append(str(val))
