@@ -343,7 +343,6 @@ double model_selection(long seed,
     auto start = std::chrono::high_resolution_clock::now();
     
     printf("n_unique_states, fbp, bgp, log_marginal_sum, log_marginal_smc\n");
-
     omp_set_num_threads(n_threads);
 #pragma omp parallel for
     for (unsigned int n = 0; n < n_mc_samples; n++) {
