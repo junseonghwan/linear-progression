@@ -10,7 +10,7 @@ import functions
 
 key_list = ["seed", "model_len", "n_mc_samples", "n_pg_iter", "n_particles", "n_smc_iter", "n_kernel_iter", 
             "n_mh_w_gibbs_iter", "has_passenger", "swap_prob", "fbp_max", "bgp_max", "mh_proposal_sd", 
-            "n_threads", "data_path", "use_lik_tempering"]
+            "n_mc_jobs", "n_smc_threads", "data_path", "use_lik_tempering"]
 
 config_file = sys.argv[1]
 mode = sys.argv[2] # {model, pg}
@@ -39,7 +39,8 @@ swap_prob = float(configs["swap_prob"])
 fbp_max = float(configs["fbp_max"])
 bgp_max = float(configs["bgp_max"])
 mh_proposal_sd = float(configs["mh_proposal_sd"])
-n_threads = int(configs["n_threads"])
+n_mc_jobs = int(configs["n_mc_jobs"])
+n_smc_threads = int(configs["n_smc_threads"])
 data_path = os.path.abspath(configs["data_path"])
 use_lik_tempering = bool(configs["use_lik_tempering"])
 
@@ -72,7 +73,8 @@ for rep in range(rep_begin, rep_end+1):
         functions.add_cmd(cmd, "-S", n_smc_iter)
         functions.add_cmd(cmd, "-k", n_kernel_iter)
         functions.add_cmd(cmd, "-G", n_mh_w_gibbs_iter)
-        functions.add_cmd(cmd, "-t", n_threads)
+        functions.add_cmd(cmd, "-t", n_mc_jobs)
+        functions.add_cmd(cmd, "--n_smc_threads", n_smc_threads)
         functions.add_cmd(cmd, "-T", use_lik_tempering)
         functions.add_cmd(cmd, "-f", fbp_max)
         functions.add_cmd(cmd, "-b", bgp_max)

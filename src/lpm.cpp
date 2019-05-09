@@ -291,7 +291,8 @@ double model_selection(long seed,
                        double swap_prob,
                        const double *fbps,
                        const double *bgps,
-                       unsigned int n_threads,
+                       unsigned int n_mc_jobs,
+                       unsigned int n_smc_threads,
                        double *log_marginal_sum,
                        double *log_marginal_smc,
                        bool use_lik_tempering)
@@ -343,7 +344,7 @@ double model_selection(long seed,
     auto start = std::chrono::high_resolution_clock::now();
     
     printf("n_unique_states, fbp, bgp, log_marginal_sum, log_marginal_smc\n");
-    omp_set_num_threads(n_threads);
+    omp_set_num_threads(n_mc_jobs);
 #pragma omp parallel for
     for (unsigned int n = 0; n < n_mc_samples; n++) {
         // smc options
@@ -355,7 +356,7 @@ double model_selection(long seed,
         smc_options.csmc_set_partile_population = false;
         smc_options.main_seed = main_seeds[n];
         smc_options.resampling_seed = resampling_seeds[n];
-        smc_options.num_threads = 1;
+        smc_options.num_threads = n_smc_threads;
 
         // LPM model proposal
         LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
@@ -422,12 +423,13 @@ double model_selection(long seed,
                        double swap_prob,
                        const double *fbps,
                        const double *bgps,
-                       unsigned int n_threads,
+                       unsigned int n_mc_jobs,
+                       unsigned int n_smc_threads,
                        bool use_lik_tempering)
 {
     double *log_marginal_sum = new double[n_mc_samples];
     double *log_marginal_smc = new double[n_mc_samples];
-    double fhat = model_selection(seed, dat_file, model_len, n_mc_samples, n_particles, n_smc_iter, n_kernel_iter, has_passenger, swap_prob, fbps, bgps, n_threads, log_marginal_sum, log_marginal_smc);
+    double fhat = model_selection(seed, dat_file, model_len, n_mc_samples, n_particles, n_smc_iter, n_kernel_iter, has_passenger, swap_prob, fbps, bgps, n_mc_jobs, n_smc_threads, log_marginal_sum, log_marginal_smc);
     
     // output log_marginal_sum, log_marginal_smc
     // model_len, fbps[i], bgps[i], lgo_marginal_sum[i], log_marginal_smc[i]

@@ -59,7 +59,8 @@ int main(int argc, char *argv[])
     unsigned int n_smc_iter;
     unsigned int n_kernel_iter;
     unsigned int n_mh_w_gibbs_iter;
-    unsigned int n_threads;
+    unsigned int n_mc_threads;
+    unsigned int n_smc_threads;
     bool use_lik_tempering;
     double fbp_max, bgp_max;
     bool has_passenger;
@@ -80,7 +81,8 @@ int main(int argc, char *argv[])
     ("n_smc_iter,S", po::value<unsigned int>(&n_smc_iter)->required(), "Specify number of SMC iterations.")
     ("n_kernel_iter,k", po::value<unsigned int>(&n_kernel_iter)->default_value(5), "Specify number of iterations of MCMC kernels to apply within a SMC move. Specifying 0 reduces to random walk move.")
     ("n_mh_w_gibbs_iter,G", po::value<unsigned int>(&n_mh_w_gibbs_iter)->default_value(10), "Specify number of iterations of MH within Gibbs for inferring the parameters within PG.")
-    ("n_threads,t", po::value<unsigned int>(&n_threads)->default_value(1), "Specify number of threads.")
+    ("n_mc_threads,t", po::value<unsigned int>(&n_mc_threads)->default_value(1), "Specify number of threads to use for parallel processing of Monte Carlo samples.")
+    ("n_smc_threads", po::value<unsigned int>(&n_smc_threads)->default_value(1), "Specify number of threads to use for SMC algorithm.")
     ("use_lik_tempering,T", po::value<bool>(&use_lik_tempering)->default_value(true), "Specify whether to use likelihood tempering.")
     ("fbp_max,f", po::value<double>(&fbp_max)->default_value(0), "Specify max value for flip-back probability. Specify 0 here to use unified error probability.")
     ("bgp_max,b", po::value<double>(&bgp_max)->default_value(0.2), "Specify max value for background mutation probability. Specifying 0 for fbp_max to interpret this quantity as an error probability.")
@@ -102,7 +104,7 @@ int main(int argc, char *argv[])
         if (!vm.count("n_pg_iter")) {
             cerr << "Please specify number of PG iterations." << endl;
         }
-        run_pg(seed, data_path.c_str(), output_path.c_str(), model_len, n_pg_iter, n_particles, n_smc_iter, n_kernel_iter, n_mh_w_gibbs_iter, has_passenger, swap_prob, fbp_max, bgp_max, mh_proposal_sd, n_threads);
+        run_pg(seed, data_path.c_str(), output_path.c_str(), model_len, n_pg_iter, n_particles, n_smc_iter, n_kernel_iter, n_mh_w_gibbs_iter, has_passenger, swap_prob, fbp_max, bgp_max, mh_proposal_sd, n_smc_threads);
     } else if (mode == "model") {
         if (!vm.count("n_mc_samples")) {
             cerr << "Please specify number of Monte Carlo samples." << endl;
@@ -116,7 +118,7 @@ int main(int argc, char *argv[])
             std::copy(bgps, bgps + n_mc_samples, fbps);
         }
         unsigned long new_seed = gsl_rng_get(random);
-        model_selection(new_seed, data_path.c_str(), output_path.c_str(), model_len, n_mc_samples, n_particles, n_smc_iter, n_kernel_iter, has_passenger, swap_prob, fbps, bgps, n_threads, use_lik_tempering);
+        model_selection(new_seed, data_path.c_str(), output_path.c_str(), model_len, n_mc_samples, n_particles, n_smc_iter, n_kernel_iter, has_passenger, swap_prob, fbps, bgps, n_mc_threads, n_smc_threads, use_lik_tempering);
         gsl_rng_free(random);
     } else {
         cerr << "Unknown mode: " << mode << "." << endl;

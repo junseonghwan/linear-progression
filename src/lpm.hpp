@@ -62,7 +62,8 @@ extern "C" {
                            double swap_prob,
                            const double *fbps,
                            const double *bgps,
-                           unsigned int n_threads,
+                           unsigned int n_mc_jobs,
+                           unsigned int n_smc_threads,
                            double *log_marginal_sum,
                            double *log_marginal_smc,
                            bool use_lik_tempering = false);
@@ -131,7 +132,8 @@ double model_selection(long seed,
                        double swap_prob,
                        const double *fbps,
                        const double *bgps,
-                       unsigned int n_threads,
+                       unsigned int n_mc_jobs,
+                       unsigned int n_smc_threads,
                        bool use_lik_tempering = false);
 
 double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
