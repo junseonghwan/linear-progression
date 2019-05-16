@@ -193,15 +193,27 @@ void run_mcmc(long seed,
     
     // load the data
     gsl_matrix *obs_matrix = read_csv(dat_file_str, false);
+    unsigned int n_patients = obs_matrix->size1;
     unsigned int n_genes = obs_matrix->size2;
-    
+
     if (model_len >= n_genes)
     {
         cerr << "Maximum model length cannot be larger than the number of genes." << endl;
         exit(-1);
     }
     
-    unsigned int n_patients = obs_matrix->size1;
+    // output the settings
+    cout << "Running MCMC sampler {" << endl;
+    cout << "\tInput data: " << dat_file_str << endl;
+    cout << "\tNum patients: " << n_patients << endl;
+    cout << "\tModel length: " << model_len << endl;
+    cout << "\tNum MCMC iterations: " << n_mcmc_iter << endl;
+    cout << "\tNum MHwGibbs iter: " << n_mh_w_gibbs_iter << endl;
+    cout << "\tAllocate passenger pathway: " << to_string(has_passenger) << endl;
+    cout << "\tSwap prob: " << swap_prob << endl;
+    cout << "\tFBP max: " << fbp_max << endl;
+    cout << "\tBGP max: " << bgp_max << endl;
+    cout << "}" << endl;
 
     vector<unsigned int> row_sum(n_patients);
     compute_row_sum(*obs_matrix, row_sum);
