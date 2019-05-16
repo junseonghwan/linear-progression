@@ -24,7 +24,6 @@ script:
   - cd build
   - cmake ..
   - make
-  - ctest -V
 branches:
   only:
   - master
