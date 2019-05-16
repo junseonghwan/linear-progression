@@ -21,6 +21,7 @@ void fast_matrix_product(gsl_matrix &obs, unsigned int m, const vector<unsigned 
 double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes);
 double log_pathway_proposal(const LinearProgressionState &pathway, unsigned int n_genes);
 double log_pathway_proposal(const vector<unsigned int> &pathway, unsigned int n_pathways);
+double log_min_valid_pathway_proposal(const LinearProgressionState &pathway, unsigned int n_genes);
 
 // compute log likelihood for a given number of mutations given pathway size and error probabilities
 double compute_log_lik_active(unsigned int n_mutations, unsigned int pathway_size, double bgp, double fbp);

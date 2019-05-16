@@ -328,7 +328,7 @@ void write_pg_output(string path,
 
 }
 
-void write_vector(string path, vector<unsigned int> data)
+void write_vector(string path, const vector<unsigned int> &data)
 {
     ofstream f;
     f.open(path, ios::out);
@@ -337,6 +337,17 @@ void write_vector(string path, vector<unsigned int> data)
     }
     f.close();
 }
+
+void write_vector(string path, const vector<double> &data)
+{
+    ofstream f;
+    f.open(path, ios::out);
+    for (unsigned int i = 0; i < data.size(); i++) {
+        f << data[i] << endl;
+    }
+    f.close();
+}
+
 
 void write_matrix_as_csv(string path, const gsl_matrix &data)
 {

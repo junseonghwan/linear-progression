@@ -53,7 +53,7 @@ allocate_passenger_pathway(allocate_passenger_pathway), is_lik_tempered(is_lik_t
     for (unsigned int i = 0; i < num_driver_pathways; i++) {
         pathway_indices[i] = i;
     }
-    
+
     log_uniform_prior = allocate_passenger_pathway ? log_pathway_uniform_prior(num_driver_pathways + 1, num_genes) : log_pathway_uniform_prior(num_driver_pathways, num_genes);
 }
 
@@ -71,44 +71,38 @@ shared_ptr<LinearProgressionState> LinearProgressionModel::propose_initial(gsl_r
 {
     double log_lik = DOUBLE_NEG_INF;
     LinearProgressionState *state = 0;
-
     if (prev_pop == 0) {
-
-        // propose a pathway by shuffling the gens and then selecting random splitter locations
         state = new LinearProgressionState(obs, row_sum, num_genes, num_driver_pathways, allocate_passenger_pathway);
-        state->sample_pathway(random);
-
-    } else {
-
-        // proposal from (1-\alpha) \hat{p}(x|y) + \alpha q_0(x)
         double unif = gsl_ran_flat(random, 0.0, 1.0);
         if (unif < alpha) {
-            // sample from q_0(x)
+            state->sample_pathway(random);
+        } else {
+            state->sample_min_valid_pathway(random);
+        }
+    } else {
+        // sample from the empirical distribution or q_0
+        double unif = gsl_ran_flat(random, 0.0, 1.0);
+        if (unif < alpha) {
             state = new LinearProgressionState(obs, row_sum, num_genes, num_driver_pathways, allocate_passenger_pathway);
             state->sample_pathway(random);
         } else {
-            // sample from prev_pop: \hat{p}(x|y)
-            unif = gsl_ran_flat(random, 0.0, 1.0);
+            // sample from empirical distribution
             double sum = 0.0;
+            double w = 0.0;
+            unif = gsl_ran_flat(random, 0.0, 1.0);
             for (auto it = prev_pop->begin(); it != prev_pop->end(); ++it) {
-                if (unif < (sum + it->second)) {
+                w = (double)it->second/total_mass;
+                if (unif < sum + w) {
                     state = new LinearProgressionState(it->first);
-                    break;
                 }
-                sum += it->second;
+                sum += w;
             }
             assert(state != 0);
         }
     }
-
     log_lik = compute_pathway_likelihood(*state, params);
     state->set_log_lik(log_lik);
-    
-    if (num_smc_iter == 1) {
-        log_w = initial_log_weight(*state, params, false);
-    } else {
-        log_w = initial_log_weight(*state, params, false);
-    }
+    log_w = initial_log_weight(*state, params, false);
 
     shared_ptr<LinearProgressionState> ret(state);
     if (log_lik == DOUBLE_NEG_INF) {
@@ -121,6 +115,7 @@ shared_ptr<LinearProgressionState> LinearProgressionModel::propose_initial(gsl_r
 
 shared_ptr<LinearProgressionState>LinearProgressionModel::propose_next(gsl_rng *random, unsigned int t, const LinearProgressionState &curr, double &log_w, LinearProgressionParameters &params)
 {
+    log_w = log_weight_helper(t, curr, curr, params, false);
     // make a copy of the curr state
     LinearProgressionState *new_state = new LinearProgressionState(curr);
     if (num_mcmc_iter > 0)
@@ -128,7 +123,6 @@ shared_ptr<LinearProgressionState>LinearProgressionModel::propose_next(gsl_rng *
     else
         rw_move(random, t, *new_state, params);
     shared_ptr<LinearProgressionState> ret(new_state);
-    log_w = log_weight_helper(t, curr, *new_state, params, false);
     return ret;
 }
 
@@ -164,6 +158,7 @@ void LinearProgressionModel::mh_kernel(gsl_rng *random, double t, LinearProgress
     double log_accept_ratio;
     double prev_log_lik = state.get_log_lik();
     double new_log_lik;
+    double temperature = get_temperature(t+1);
     
     unsigned int *pathways_to_swap = new unsigned int[2];
     double unif = 0.0;
@@ -193,7 +188,10 @@ void LinearProgressionModel::mh_kernel(gsl_rng *random, double t, LinearProgress
 
         new_log_lik = compute_pathway_likelihood(state, params);
 
-        log_accept_ratio = (new_log_lik - prev_log_lik);
+        if (is_lik_tempered)
+            log_accept_ratio = temperature * (new_log_lik - prev_log_lik);
+        else
+            log_accept_ratio = (new_log_lik - prev_log_lik);
         unif = gsl_ran_flat(random, 0.0, 1.0);
         if (log(unif) < log_accept_ratio) {
             // accept
@@ -213,37 +211,39 @@ void LinearProgressionModel::mh_kernel(gsl_rng *random, double t, LinearProgress
     delete [] pathways_to_swap;
 }
 
-void LinearProgressionModel::set_particle_population(const vector<vector<shared_ptr<LinearProgressionState> > > &particles, const vector<vector<double> > &log_weights, const vector<double> &log_norms)
+void LinearProgressionModel::set_particle_population(const vector<shared_ptr<LinearProgressionState> > &particles)
 {
-    unsigned int R = num_iterations();
+    //unsigned int R = num_iterations();
     // take the samples from the last iteration to update the initial proposal distribution
-    const vector<shared_ptr<LinearProgressionState> > &particles_at_termination = particles.at(R - 1);
-    const vector<double> &log_weights_at_termination = log_weights.at(R-1);
-    double log_norm = log_norms[R-1];
+//    const vector<shared_ptr<LinearProgressionState> > &particles_at_termination = particles.at(R - 1);
+//    const vector<double> &log_weights_at_termination = log_weights.at(R-1);
+//    double log_norm = log_norms[R-1];
 
-    unsigned int n_particles = particles_at_termination.size();
+//    unsigned int n_particles = particles_at_termination.size();
+    unsigned int n_particles = particles.size();
 
     if (prev_pop == 0) {
-        prev_pop = new unordered_map<LinearProgressionState, double, hash<LinearProgressionState> >();
+        prev_pop = new unordered_map<LinearProgressionState, unsigned int, hash<LinearProgressionState> >();
     } else {
         prev_pop->clear();
     }
-
+    
     // normalize the probs and copy the contents
-    double sum = 0.0;
-    double prob;
+    total_mass = n_particles;
     for (size_t i = 0; i < n_particles; i++) {
-        const LinearProgressionState &state = *particles_at_termination[i].get();
+        const LinearProgressionState &state = *particles[i].get();
         if (prev_pop->count(state) == 0) {
             (*prev_pop)[state] = 0.0;
         }
-        
-        prob = exp(log_weights_at_termination[i] - log_norm);
-        (*prev_pop)[state] += prob;
-        sum += prob;
-    }
 
-    assert(abs(sum - 1.0) < 1e-5);
+        (*prev_pop)[state] += 1;
+//        cout << "=====" << endl;
+//        cout << state.to_string() << endl;
+//        cout << "count: " << (*prev_pop)[state] << endl;
+//        cout << "log_lik: " << state.get_log_lik() << endl;
+//        cout << "=====" << endl;
+    }
+    cout << "Empirical estimate size: " << prev_pop->size() << endl;
 }
 
 double LinearProgressionModel::initial_log_weight(const LinearProgressionState &state, const LinearProgressionParameters &params, bool recompute_log_lik)
@@ -251,7 +251,7 @@ double LinearProgressionModel::initial_log_weight(const LinearProgressionState &
     double log_weight = 0.0;
     double log_proposal = 0.0;
     double log_lik = recompute_log_lik ? compute_pathway_likelihood(state, params) : state.get_log_lik();
-    
+
     if (is_lik_tempered) {
         double temperature = get_temperature(1);
         log_weight = temperature * log_lik;
@@ -261,7 +261,8 @@ double LinearProgressionModel::initial_log_weight(const LinearProgressionState &
 
     if (prev_pop != 0 && prev_pop->count(state) > 0) {
         log_proposal = log(alpha) + log_pathway_proposal(state, num_genes);
-        log_proposal = log_add(log_proposal, log(1 - alpha) + log((*prev_pop)[state]));
+        double w = (double)(*prev_pop)[state] / total_mass;
+        log_proposal = log_add(log_proposal, log(1 - alpha) + log(w));
     } else {
         log_proposal = log_pathway_proposal(state, num_genes);
     }

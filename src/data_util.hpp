@@ -43,7 +43,8 @@ void write_model_selection_output_to_file(string path, unsigned int n_patients,
 void write_pg_output(string path,
                      ParticleGibbs<LinearProgressionState, LinearProgressionParameters> &pg,
                      LPMParamProposal &pg_proposal);
-void write_vector(string path, vector<unsigned int> data);
+void write_vector(string path, const vector<unsigned int> &data);
+void write_vector(string path, const vector<double> &data);
 void write_matrix_as_csv(string path, const gsl_matrix &data);
 
 // data simulation functions

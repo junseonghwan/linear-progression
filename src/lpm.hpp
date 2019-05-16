@@ -15,6 +15,19 @@
 #include "lpm_params.hpp"
 
 extern "C" {
+    void run_mcmc(long seed,
+                  const char *dat_file,
+                  const char *output_path,
+                  unsigned int model_len,
+                  unsigned int n_mcmc_iter,
+                  unsigned int n_mh_w_gibbs_iter,
+                  unsigned int thinning,
+                  bool has_passenger,
+                  double swap_prob,
+                  double fbp_max,
+                  double bgp_max,
+                  double mh_proposal_sd);
+    
     void run_pg(long seed,
                 const char *dat_file,
                 const char *output_path,

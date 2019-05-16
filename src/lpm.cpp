@@ -15,7 +15,10 @@
 #include <string>
 #include <sstream>
 
+#include <gsl/gsl_rng.h>
 #include <gsl/gsl_sf.h>
+#include <gsl/gsl_statistics.h>
+#include <gsl/gsl_randist.h>
 
 #include <omp.h>
 
@@ -24,6 +27,254 @@
 #include "lpm_model.hpp"
 
 using namespace std;
+
+bool do_swap_move(unsigned int num_driver_pathways, double unif, double pathway_swap_prob)
+{
+    return (num_driver_pathways >= 2 && unif < pathway_swap_prob);
+}
+
+void gibbs_move(gsl_rng *random, LinearProgressionParameters &params,
+                                        LinearProgressionState &state, double pathway_swap_prob,
+                                        unsigned int num_driver_pathways, unsigned int num_genes)
+{
+    vector<double> gibbs_log_liks(state.get_num_pathways());
+    vector<double> gibbs_probs(state.get_num_pathways());
+    for (unsigned int i = 0; i < 1; i++) {
+        // sample a gene at random and sample pathway at random
+        double prev_log_lik = state.get_log_lik();
+        unsigned int gene_idx = gsl_rng_uniform_int(random, num_genes);
+        unsigned int old_pathway = state.get_pathway_membership_of(gene_idx);
+        for (unsigned int k = 0; k < state.get_num_pathways(); k++) {
+            if (k == old_pathway) {
+                gibbs_log_liks[k] = prev_log_lik;
+            }
+            state.update_pathway_membership(gene_idx, k);
+            gibbs_log_liks[k] = compute_pathway_likelihood(state, params);
+        }
+        normalize(gibbs_log_liks, gibbs_probs);
+        unsigned int new_pathway = multinomial(random, gibbs_probs);
+        state.update_pathway_membership(gene_idx, new_pathway);
+        state.set_log_lik(gibbs_log_liks[new_pathway]);
+    }
+}
+
+void mh_move_params(gsl_rng *random,
+                    LinearProgressionParameters &params,
+                    LinearProgressionState &state,
+                    unsigned int n_mh_w_gibbs_iter,
+                    double mh_proposal_sd,
+                    double error_max)
+{
+    double old_log_lik = compute_pathway_likelihood(state, params);
+    double old_error_prob = params.get_bgp();
+    for (size_t i = 0; i < n_mh_w_gibbs_iter; i++) {
+        double new_error_prob = gsl_ran_gaussian(random, mh_proposal_sd) + old_error_prob;
+        if (new_error_prob > 0 && new_error_prob <= error_max) {
+            params.set_bgp(new_error_prob);
+            params.set_fbp(new_error_prob);
+            double new_log_lik = compute_pathway_likelihood(state, params);
+            double log_u = log(gsl_ran_flat(random, 0.0, 1.0));
+            if (log_u < (new_log_lik - old_log_lik)) {
+                // accept
+                old_log_lik = new_log_lik;
+                old_error_prob = new_error_prob;
+            } else {
+                // revert
+                params.set_bgp(old_error_prob);
+                params.set_fbp(old_error_prob);
+            }
+        }
+    }
+}
+
+unsigned int *pathway_indices = 0;
+void mh_move(gsl_rng *random,
+             LinearProgressionParameters &params,
+             LinearProgressionState &state,
+             unsigned int n_genes,
+             double pathway_swap_prob,
+             double prior_driver_prob)
+{
+    double log_accept_ratio;
+    double prev_log_lik = state.get_log_lik();
+    double new_log_lik;
+
+    unsigned int *pathways_to_swap = new unsigned int[2];
+    double log_unif = 0.0;
+    bool is_swap_move = false;
+    unsigned gene_idx, pathway1, pathway2;
+
+    if (prev_log_lik == DOUBLE_NEG_INF) {
+        cerr << "Error: previous log lik is neg inf! This means empty pathway was sampled in the previous step." << endl;
+        exit(-1);
+    }
+
+    for (unsigned int i = 0; i < 1; i++) {
+        double unif = gsl_ran_flat(random, 0.0, 1.0);
+        is_swap_move = do_swap_move(state.get_num_driver_pathways(), unif, pathway_swap_prob);
+        if (is_swap_move) {
+            gsl_ran_choose(random, pathways_to_swap, 2, pathway_indices, state.get_num_driver_pathways(), sizeof(unsigned int));
+            pathway1 = pathways_to_swap[0];
+            pathway2 = pathways_to_swap[1];
+            state.swap_pathways(pathway1, pathway2);
+        } else {
+            // sample a gene at random and sample pathway at random
+            gene_idx = gsl_rng_uniform_int(random, n_genes);
+            pathway1 = state.get_pathway_membership_of(gene_idx);
+            pathway2 = gsl_rng_uniform_int(random, state.get_num_pathways());
+            if (pathway1 == pathway2)
+                continue;
+            state.update_pathway_membership(gene_idx, pathway2);
+        }
+
+        new_log_lik = compute_pathway_likelihood(state, params);
+
+        log_unif = log(gsl_ran_flat(random, 0.0, 1.0));
+        log_accept_ratio = (new_log_lik - prev_log_lik);
+        if (is_swap_move) {
+            unsigned int n_passengers = 0, n_drivers = 0;
+            if (pathway1 == state.get_num_driver_pathways()) {
+                // genes in pathway1 are becoming driver genes
+                // genes in pathway2 are becoming passenger genes
+                n_drivers = state.get_pathway_size(pathway1);
+                n_passengers = state.get_pathway_size(pathway2);
+                log_accept_ratio += (n_drivers * log(prior_driver_prob) + n_passengers * log(1-prior_driver_prob));
+                log_accept_ratio -= (n_passengers * log(prior_driver_prob) + n_drivers * log(1-prior_driver_prob));
+            }
+            else if (pathway2 == state.get_num_driver_pathways()) {
+                // genes in pathway1 are becoming passenger genes
+                // genes in pathway2 are becoming driver genes
+                n_drivers = state.get_pathway_size(pathway2);
+                n_passengers = state.get_pathway_size(pathway1);
+                log_accept_ratio += (n_drivers * log(prior_driver_prob) + n_passengers * log(1-prior_driver_prob));
+                log_accept_ratio -= (n_passengers * log(prior_driver_prob) + n_drivers * log(1-prior_driver_prob));
+            }
+        } else {
+            if (pathway1 < state.get_num_driver_pathways() && pathway2 == state.get_num_driver_pathways()) {
+                // assigning a driver gene to a passenger gene
+                log_accept_ratio += (log(1-prior_driver_prob) - log(prior_driver_prob));
+            } else if (pathway1 == state.get_num_driver_pathways() && pathway2 < state.get_num_driver_pathways()) {
+                // assigning from passenger to driver
+                log_accept_ratio += (log(prior_driver_prob) - log(1-prior_driver_prob));
+            }
+        }
+
+        if (log_unif < log_accept_ratio) {
+            // accept
+            state.set_log_lik(new_log_lik);
+            prev_log_lik = new_log_lik;
+        } else {
+            // revert
+            if (is_swap_move) {
+                state.swap_pathways(pathway2, pathway1);
+            } else {
+                state.update_pathway_membership(gene_idx, pathway1);
+            }
+            state.set_log_lik(prev_log_lik);
+        }
+    }
+}
+
+void run_mcmc(long seed,
+              const char *dat_file,
+              const char *output_path,
+              unsigned int model_len,
+              unsigned int n_mcmc_iter,
+              unsigned int n_mh_w_gibbs_iter,
+              unsigned int thinning,
+              bool has_passenger,
+              double swap_prob,
+              double fbp_max,
+              double bgp_max,
+              double mh_proposal_sd)
+{
+    // convert char* to string
+    string dat_file_str(dat_file, strlen(dat_file));
+    
+    // load the data
+    gsl_matrix *obs_matrix = read_csv(dat_file_str, false);
+    unsigned int n_genes = obs_matrix->size2;
+    
+    if (model_len >= n_genes)
+    {
+        cerr << "Maximum model length cannot be larger than the number of genes." << endl;
+        exit(-1);
+    }
+    
+    unsigned int n_patients = obs_matrix->size1;
+
+    vector<unsigned int> row_sum(n_patients);
+    compute_row_sum(*obs_matrix, row_sum);
+    
+    // allocate random object
+    gsl_rng *random = generate_random_object(seed);
+    
+    pathway_indices = new unsigned int[model_len];
+    for (unsigned int i = 0; i < model_len; i++) {
+        pathway_indices[i] = i;
+    }
+
+    double bgp_init = gsl_ran_flat(random, 0, bgp_max);
+    double fbp_init = bgp_init;
+    if (fbp_max > 0) {
+        fbp_init = gsl_ran_flat(random, 0, fbp_max);
+    }
+    LinearProgressionParameters params(fbp_init, bgp_init);
+    LinearProgressionState *state = new LinearProgressionState(*obs_matrix, row_sum, n_genes, model_len, has_passenger);
+    state->sample_min_valid_pathway(random);
+    state->set_log_lik(compute_pathway_likelihood(*state, params));
+    double best_log_lik = DOUBLE_NEG_INF;
+
+    size_t n_samples = n_mcmc_iter/thinning;
+    n_samples = n_mcmc_iter % thinning  > 0 ? n_samples + 1 : n_samples;
+    size_t sample_idx = 0;
+    gsl_matrix *states = gsl_matrix_alloc(n_samples, n_genes);
+    vector<double> bgps;
+    vector<double> fbps;
+    unsigned int burn_in = n_mcmc_iter / 10; // 10% of the iteration should be used for burn-in
+    for (size_t i = 0; i < n_mcmc_iter; i++) {
+        mh_move(random, params, *state, n_genes, 0.1, 0.1);
+        mh_move_params(random, params, *state, n_mh_w_gibbs_iter, mh_proposal_sd, bgp_max);
+        if (i % thinning == 0) {
+            cout << "Iter: " << i << endl;
+            cout << "Curr params: " << params.get_bgp() << endl;
+            cout << "Curr state: " << state->to_string() << endl;
+            cout << "Curr log_lik: " << state->get_log_lik() << endl;
+
+            for (size_t g = 0; g < n_genes; g++) {
+                gsl_matrix_set(states, sample_idx, g, state->get_pathway_membership_of(g));
+            }
+            sample_idx++;
+        }
+        if (state->get_log_lik() > best_log_lik) {
+            best_log_lik = state->get_log_lik();
+            cout << "=====" << endl;
+            cout << state->to_string() << endl;
+            cout << state->get_log_lik() << endl;
+            cout << "=====" << endl;
+        }
+
+        // store all parameters
+        bgps.push_back(params.get_bgp());
+        fbps.push_back(params.get_fbp());
+
+        // perform simple adaptation during burn-in
+        if (i < burn_in) {
+            mh_proposal_sd = params.get_bgp()/2;
+        } else if (i == burn_in) {
+            // compute empirical standard deviation of the parameters sampled and use it
+            mh_proposal_sd = gsl_stats_sd(bgps.data(), 1, bgps.size());
+        }
+    }
+
+    // print the samples to files
+    string output_path_str(output_path, strlen(output_path));
+    write_vector(output_path_str + "/bgps.csv" , bgps);
+    write_vector(output_path_str + "/fbps.csv" , fbps);
+    write_matrix_as_csv(output_path_str + "/states.csv" , *states);
+    
+    delete [] pathway_indices;
+}
 
 void run_pg(long seed,
             const char *dat_file,

@@ -26,6 +26,19 @@ double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes)
     return -log(f[n_pathways-1]);
 }
 
+double log_min_valid_pathway_proposal(const LinearProgressionState &pathway, unsigned int n_genes)
+{
+    if (pathway.contains_empty_driver_pathway()) {
+        return DOUBLE_NEG_INF;
+    }
+    double log_proposal = 0.0;
+    for (unsigned int k = 0; k < pathway.get_num_driver_pathways(); k++) {
+        log_proposal += log(n_genes - k);
+    }
+    return -log_proposal;
+}
+
+
 double log_pathway_proposal(const LinearProgressionState &pathway, unsigned int n_genes)
 {
     if (pathway.contains_empty_driver_pathway()) {

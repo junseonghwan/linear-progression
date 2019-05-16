@@ -4,6 +4,8 @@ def parse_config(config_file):
     f = open(config_file, "r")
     configs = dict()
     for line in f:
+        if len(line.strip()) == 0:
+            continue # ignore empty line
         row = line.split(":")
         configs[row[0].strip()] = row[1].strip()
     return configs

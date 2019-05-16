@@ -39,7 +39,8 @@ class LinearProgressionModel : public ProblemSpecification<LinearProgressionStat
     // variables related to initial proposal: (1-alpha) \hat{p}(x|y) + alpha p(x)
     double alpha = 0.5; // mixture proportion for the prior proposal within cSMC context
     // prev_pop to be used for initial proposal
-    unordered_map<LinearProgressionState, double, hash<LinearProgressionState> > *prev_pop = 0;
+    unordered_map<LinearProgressionState, unsigned int, hash<LinearProgressionState> > *prev_pop = 0;
+    unsigned int total_mass = 0;
 
     // helper variables to limit the number of times new vector/array that are allocated
     unsigned int *pathway_indices;
@@ -76,7 +77,7 @@ public:
     shared_ptr<LinearProgressionState> propose_initial(gsl_rng *random, double &log_w, LinearProgressionParameters &params) override;
     shared_ptr<LinearProgressionState> propose_next(gsl_rng *random, unsigned int t, const LinearProgressionState &curr, double &log_w, LinearProgressionParameters &params) override;
     double log_weight(unsigned int t, const shared_ptr<ParticleGenealogy<LinearProgressionState> > &genealogy, const LinearProgressionParameters &params) override;
-    void set_particle_population(const vector<vector<shared_ptr<LinearProgressionState> > > &particles, const vector<vector<double> > &log_weights, const vector<double> &log_norms) override;
+    void set_particle_population(const vector<shared_ptr<LinearProgressionState> > &particles) override;
     ~LinearProgressionModel();
     
 };

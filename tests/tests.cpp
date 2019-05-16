@@ -447,22 +447,36 @@ int main()
     boost::filesystem::path curr_path = boost::filesystem::current_path();
     cout << "Exec dir: " <<  curr_path.string() << endl;
     // when running locally (for debugging) provide path specific to your local computer
-    string data_path = "../../data/test";
-    string data_path2 = "../../data/test/error0.001/";
+    //string data_path = "../../data/test";
+    //string data_path2 = "../../data/test/error0.001/";
     //string data_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/test";
     //string data_path2 = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/test/error0.001/";
 
-    test_likelihood(data_path, false);
-    test_likelihood(data_path2, true);
-    test_prior_sampling();
-    test_prior_calculation();
-    test_log_marginal_estimates();
+//    test_likelihood(data_path, false);
+//    test_likelihood(data_path2, true);
+//    test_prior_sampling();
+//    test_prior_calculation();
+//    test_log_marginal_estimates();
     // turns out that posterior test proposed in Cook, Gelman, Rubin may not be correct
     // see the correction: http://www.stat.columbia.edu/~gelman/research/published/cook_gelman_rubin_correction.
     // implement Geweke test instead. postpone posterior test until then.
     //test_posterior(); // this takes about 5 minutes depending on the hardware
 
-    // TODO: write a test for main.cpp
+    double error = 0.05;
+    const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/matrix.csv";
+    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/generative_mem_mat.csv";
+    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/mcmc/";
+
+//    double error = 0.1;
+//    const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep99/matrix.csv";
+//    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep99/generative_mem_mat.csv";
+//    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep99/mcmc/";
+    unsigned int *true_pathway = new unsigned int[100];
+    read_ground_truth_pathway_from_matrix(true_pathway_file, true_pathway);
+    double log_lik_at_truth = compute_likelihood(input_data, true_pathway, 5, 100, true, error, error);
+    cout << log_lik_at_truth << endl;
+    //run_pg(21, input_data, output_path, 5, 30, 200, 100, 1, 20, true, 0.1, 0.0, 0.2, 0.05, true, 4);
+    //run_mcmc(121, input_data, output_path, 5, 10000, 20, 100, true, 0.1, 0.0, 0.2, 0.05);
 
     return 0;
 }
