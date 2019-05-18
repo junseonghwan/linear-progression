@@ -98,6 +98,21 @@ extern "C" {
                        double bgp);
 }
 
+void run_mcmc_from_matrix(long seed,
+                          const gsl_matrix &obs_matrix,
+                          unsigned int model_len,
+                          unsigned int n_mcmc_iter,
+                          unsigned int n_mh_w_gibbs_iter,
+                          unsigned int thinning,
+                          bool has_passenger,
+                          double swap_prob,
+                          double fbp_max,
+                          double bgp_max,
+                          double mh_proposal_sd,
+                          gsl_matrix *states,
+                          vector<double> &bgps,
+                          vector<double> &fbps);
+
 ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_matrix(
                         long seed,
                         gsl_matrix *obs_matrix,

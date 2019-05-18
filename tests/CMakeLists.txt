@@ -4,7 +4,7 @@ file( GLOB SRCS *.cpp *.hpp)
 
 # add tests
 add_executable(tests ${SRCS})
-add_test(Tester tests WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}/bin)
+add_test(Tester tests ${CMAKE_SOURCE_DIR})
 
 find_package (PkgConfig REQUIRED)
 find_package (GSL REQUIRED)

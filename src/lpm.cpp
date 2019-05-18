@@ -196,12 +196,6 @@ void run_mcmc(long seed,
     unsigned int n_patients = obs_matrix->size1;
     unsigned int n_genes = obs_matrix->size2;
 
-    if (model_len >= n_genes)
-    {
-        cerr << "Maximum model length cannot be larger than the number of genes." << endl;
-        exit(-1);
-    }
-    
     // output the settings
     cout << "Running MCMC sampler {" << endl;
     cout << "\tInput data: " << dat_file_str << endl;
@@ -215,8 +209,49 @@ void run_mcmc(long seed,
     cout << "\tBGP max: " << bgp_max << endl;
     cout << "}" << endl;
 
+    size_t n_samples = n_mcmc_iter/thinning;
+    n_samples = n_mcmc_iter % thinning  > 0 ? n_samples + 1 : n_samples;
+
+    gsl_matrix *states = gsl_matrix_alloc(n_samples, n_genes);
+    vector<double> bgps;
+    vector<double> fbps;
+    
+    run_mcmc_from_matrix(seed, *obs_matrix, model_len, n_mcmc_iter, n_mh_w_gibbs_iter, thinning, has_passenger, swap_prob, fbp_max, bgp_max, mh_proposal_sd, states, bgps, fbps);
+    
+    // print the samples to files
+    string output_path_str(output_path, strlen(output_path));
+    write_vector(output_path_str + "/bgps.csv" , bgps);
+    write_vector(output_path_str + "/fbps.csv" , fbps);
+    write_matrix_as_csv(output_path_str + "/states.csv" , *states);
+    gsl_matrix_free(states);
+}
+
+void run_mcmc_from_matrix(long seed,
+                          const gsl_matrix &obs_matrix,
+                          unsigned int model_len,
+                          unsigned int n_mcmc_iter,
+                          unsigned int n_mh_w_gibbs_iter,
+                          unsigned int thinning,
+                          bool has_passenger,
+                          double swap_prob,
+                          double fbp_max,
+                          double bgp_max,
+                          double mh_proposal_sd,
+                          gsl_matrix *states,
+                          vector<double> &bgps,
+                          vector<double> &fbps)
+{
+    unsigned int n_patients = obs_matrix.size1;
+    unsigned int n_genes = obs_matrix.size2;
+    
+    if (model_len >= n_genes)
+    {
+        cerr << "Maximum model length cannot be larger than the number of genes." << endl;
+        exit(-1);
+    }
+    
     vector<unsigned int> row_sum(n_patients);
-    compute_row_sum(*obs_matrix, row_sum);
+    compute_row_sum(obs_matrix, row_sum);
     
     // allocate random object
     gsl_rng *random = generate_random_object(seed);
@@ -225,24 +260,19 @@ void run_mcmc(long seed,
     for (unsigned int i = 0; i < model_len; i++) {
         pathway_indices[i] = i;
     }
-
+    
     double bgp_init = gsl_ran_flat(random, 0, bgp_max);
     double fbp_init = bgp_init;
     if (fbp_max > 0) {
         fbp_init = gsl_ran_flat(random, 0, fbp_max);
     }
     LinearProgressionParameters params(fbp_init, bgp_init);
-    LinearProgressionState *state = new LinearProgressionState(*obs_matrix, row_sum, n_genes, model_len, has_passenger);
+    LinearProgressionState *state = new LinearProgressionState(obs_matrix, row_sum, n_genes, model_len, has_passenger);
     state->sample_min_valid_pathway(random);
     state->set_log_lik(compute_pathway_likelihood(*state, params));
     double best_log_lik = DOUBLE_NEG_INF;
-
-    size_t n_samples = n_mcmc_iter/thinning;
-    n_samples = n_mcmc_iter % thinning  > 0 ? n_samples + 1 : n_samples;
+    
     size_t sample_idx = 0;
-    gsl_matrix *states = gsl_matrix_alloc(n_samples, n_genes);
-    vector<double> bgps;
-    vector<double> fbps;
     unsigned int burn_in = n_mcmc_iter / 10; // 10% of the iteration should be used for burn-in
     for (size_t i = 0; i < n_mcmc_iter; i++) {
         mh_move(random, params, *state, n_genes, 0.1, 0.1);
@@ -252,7 +282,7 @@ void run_mcmc(long seed,
             cout << "Curr params: " << params.get_bgp() << endl;
             cout << "Curr state: " << state->to_string() << endl;
             cout << "Curr log_lik: " << state->get_log_lik() << endl;
-
+            
             for (size_t g = 0; g < n_genes; g++) {
                 gsl_matrix_set(states, sample_idx, g, state->get_pathway_membership_of(g));
             }
@@ -265,11 +295,11 @@ void run_mcmc(long seed,
             cout << state->get_log_lik() << endl;
             cout << "=====" << endl;
         }
-
+        
         // store all parameters
         bgps.push_back(params.get_bgp());
         fbps.push_back(params.get_fbp());
-
+        
         // perform simple adaptation during burn-in
         if (i < burn_in) {
             mh_proposal_sd = params.get_bgp()/2;
@@ -279,14 +309,9 @@ void run_mcmc(long seed,
         }
     }
 
-    // print the samples to files
-    string output_path_str(output_path, strlen(output_path));
-    write_vector(output_path_str + "/bgps.csv" , bgps);
-    write_vector(output_path_str + "/fbps.csv" , fbps);
-    write_matrix_as_csv(output_path_str + "/states.csv" , *states);
-    
     delete [] pathway_indices;
 }
+
 
 void run_pg(long seed,
             const char *dat_file,

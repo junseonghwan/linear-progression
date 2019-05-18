@@ -46,7 +46,6 @@ class LinearProgressionModel : public ProblemSpecification<LinearProgressionStat
     unsigned int *pathway_indices;
 
     double get_temperature(unsigned int t);
-    void rw_move(gsl_rng *random, double t, LinearProgressionState &curr, LinearProgressionParameters &params);
     void mh_kernel(gsl_rng *random, double t, LinearProgressionState &curr, LinearProgressionParameters &params);
     double initial_log_weight(const LinearProgressionState &state, const LinearProgressionParameters &params, bool recompute_log_lik);
     double log_weight_helper(unsigned int t, const LinearProgressionState &prev_state, const LinearProgressionState &curr_state, const LinearProgressionParameters &params, bool recompute_log_lik);

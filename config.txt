@@ -1,7 +1,7 @@
 seed: 1
 model_len: 5
 n_mc_samples: 8
-n_mcmc_iter: 50000
+n_mcmc_iter: 200
 n_particles: 500
 n_smc_iter: 100
 n_kernel_iter: 3

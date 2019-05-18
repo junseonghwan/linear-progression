@@ -18,6 +18,7 @@
 
 #include <gsl/gsl_cdf.h>
 #include <gsl/gsl_randist.h>
+#include <gsl/gsl_statistics.h>
 
 #include "lpm.hpp"
 #include "lpm_likelihood.hpp"
@@ -92,7 +93,7 @@ void test_likelihood(string data_path, bool has_passenger)
 }
 
 // run SMC to estimate the log marginal likelihood
-void test_marginal_likelihood_estimate_smc(long seed, gsl_matrix *data_matrix, unsigned int n_pathways, unsigned int n_particles, unsigned int n_smc_iter, unsigned int n_mcmc_iter, bool is_lik_tempered, double fbp, double bgp, unordered_map<string, double> true_probs, double exact_log_marginal_lik)
+double test_marginal_likelihood_estimate_smc(long seed, gsl_matrix *data_matrix, unsigned int n_pathways, unsigned int n_particles, unsigned int n_smc_iter, unsigned int n_mcmc_iter, bool is_lik_tempered, double fbp, double bgp, unordered_map<string, double> true_probs, double exact_log_marginal_lik)
 {
     double logZ;
     double swap_prob = 0;
@@ -138,6 +139,7 @@ void test_marginal_likelihood_estimate_smc(long seed, gsl_matrix *data_matrix, u
     }
 
     cout << "SMC test passed!" << endl;
+    return logZ;
     
     delete [] states;
     delete [] log_weights;
@@ -219,107 +221,42 @@ void test_log_marginal_estimates()
     }
 
     long seed = gsl_rng_get(random);
-    test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_is_particles, n_is_iter, 0, false, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-1]);
+    test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_is_particles, n_is_iter, 1, false, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-1]);
     
-    // 2 cases to test:
-    // 1. MH + no tempering: n_mcmc_iter > 0 + is_lik_tempered = false
-    // 2. MH + tempering: n_mcmc_iter > 0 + is_lik_tempered = true
+    // test SMC algorithm using MH + tempering: n_mcmc_iter > 0 + is_lik_tempered = true
     unsigned int n_mcmc_iter = 5;
-    bool is_lik_tempered = false;
-    for (size_t i = 0; i < 5; i++) {
+    unsigned int n_reps = 20;
+    bool is_lik_tempered = true;
+    vector<double> log_marginals(n_reps);
+    for (size_t i = 0; i < n_reps; i++) {
         seed = gsl_rng_get(random);
-        test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_smc_particles, n_smc_iter, n_mcmc_iter, is_lik_tempered, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-1]);
+        double logZ = test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_smc_particles, n_smc_iter, n_mcmc_iter, is_lik_tempered, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-1]);
+        log_marginals[i] = logZ;
     }
 
-    is_lik_tempered = true;
-    for (size_t i = 0; i < 5; i++) {
-        seed = gsl_rng_get(random);
-        test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_smc_particles, n_smc_iter, n_mcmc_iter, is_lik_tempered, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-1]);
-    }
-
-    // 2 additional cases in case we want to implement RW move
-    // RW move implementation is not yet completed so leave it out for now
-    // 1. RW + tempering: n_mcmc_iter = 0 + is_lik_tempered = true
-    // 2. RW + no tempering: n_mcmc_iter = 0 + is_lik_tempered = false
-//    n_mcmc_iter = 0;
-//    for (size_t i = 0; i < 5; i++) {
-//        seed = gsl_rng_get(random);
-//        test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_smc_particles, n_smc_iter, n_mcmc_iter, is_lik_tempered, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-1]);
-//    }
-//
-//    is_lik_tempered = false;
-//    for (size_t i = 0; i < 5; i++) {
-//        seed = gsl_rng_get(random);
-//        test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_smc_particles, n_smc_iter, n_mcmc_iter, is_lik_tempered, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-1]);
-//    }
-//
+    double mean = gsl_stats_mean(log_marginals.data(), 1, log_marginals.size());
+    double sd = gsl_stats_sd_m(log_marginals.data(), 1, log_marginals.size(), mean);
     
+    // test that the 95% CI covers the truth
+    double lb = mean - 1.96 * sd;
+    double ub = mean + 1.96 * sd;
+    assert(lb <= exact_log_marginal_lik[n_smc_iter-1] && exact_log_marginal_lik[n_smc_iter-1] <= ub);
+    cout << "Truth: " << exact_log_marginal_lik[n_smc_iter - 1] << endl;
+    cout << "95% CI: " << "[" << lb << ", " << ub << "]" << endl;
+
     delete [] exact_log_marginal_lik;
     delete [] pathway;
     delete random;
 }
 
-void test_prior_sampling()
-{
-    gsl_rng *random = generate_random_object(123);
-
-    unsigned int *genes = new unsigned int[4];
-    unsigned int *dest = new unsigned int[3];
-    for (unsigned int i = 0; i < 4; i++) {
-        genes[i] = i;
-    }
-    unordered_map<string, unsigned int> map;
-    for (unsigned int i = 0; i < 100000; i++) {
-        gsl_ran_choose(random, dest, 3, genes, 4, sizeof(unsigned int));
-        string str = to_string(dest[0]) + ", " + to_string(dest[1]) + ", " + to_string(dest[2]);
-        if (map.count(str) == 0) {
-            map[str] = 0;
-        }
-        map[str] += 1;
-    }
-    for (auto it = map.begin(); it != map.end(); ++it) {
-        cout << it->first << ": " << (double)map[it->first]/100000 << endl;
-    }
-
-    unsigned int n_pathways = 2;
-    unsigned int n_genes = 3;
-    unsigned int n_mc_samples = 100000;
-    
-    vector<unsigned int> true_pathway(n_genes);
-    unordered_map<string, unsigned int> counts;
-    for (unsigned int i = 0; i < n_mc_samples; i++) {
-        propose_pathway(random, n_pathways, true_pathway);
-        string str = "";
-        for (unsigned int g = 0; g < n_genes; g++) {
-            if (g < n_genes - 1)
-                str += to_string(true_pathway[g]) + "_";
-            else
-                str += to_string(true_pathway[g]);
-        }
-        counts[str] += 1;
-    }
-    
-    double est = 0.0;
-    for (auto it = counts.begin(); it != counts.end(); ++it) {
-        est = (double)it->second/n_mc_samples;
-        cout << it->first << ": " << est << endl;
-        assert(abs(est - 1./6) < 0.01);
-    }
-    cout << "Prior sampling test passed!" << endl;
-    
-    delete random;
-    delete [] genes;
-    delete [] dest;
-}
-
-void test_prior_calculation()
+void test_uniform_prior_calculation()
 {
     unsigned int n_genes = 3;
     unsigned int n_pathways = 2;
     double ret = log_pathway_uniform_prior(n_pathways, n_genes);
     assert(ret == -log(6));
 
-    n_genes = 6;
+    n_genes = 8;
     n_pathways = 3;
     ret = log_pathway_uniform_prior(n_pathways, n_genes);
 
@@ -359,124 +296,42 @@ void test_prior_calculation()
     delete random;
 }
 
-void test_posterior()
+void test_run()
 {
-    gsl_rng *random = generate_random_object(2);
-
-    long seed;
-    double error_max = 0.2;
-    unsigned int num_reps = 50;
-    unsigned int n_pathways = 3;
-    unsigned int n_patients = 200;
-    unsigned int n_genes = 5;
-
-    unsigned int n_pg_iter = 50;
-    unsigned int n_particles = 200;
-    unsigned int n_smc_iter = 2*n_genes;
-    unsigned int n_kernel_iter = 3;
-    unsigned int n_mh_w_gibbs_iter = 20;
-    bool has_passenger = false;
-    double swap_prob = 0.2;
-
-    vector<double> zi(num_reps);
-    vector<unsigned int> stages(n_patients);
-    vector<unsigned int> true_pathway(n_genes);
-    vector<unsigned int> row_sum(n_patients);
-
-    sample_stages_uniform(random, n_pathways, stages);
-    propose_pathway(random, n_pathways, true_pathway);
-    
-    double bgp, fbp, chi2 = 0.0;
-    for (unsigned int rep = 0; rep < num_reps; rep++) {
-        cout << "===========" << endl;
-        cout << "rep " << rep << endl;
-        // 1. sample parameters
-        // 2. add noise to the data
-        // 3. run particle Gibbs to generate posterior over the parameters
-        // 4. compute quantile of the sampled parametrs amongst the posterior samples: q_i
-        // 5. convert the quantiles to standard normal: Z_i = \Phi(q_i)
-        bgp = gsl_ran_flat(random, 0.01, error_max);
-        //fbp = gsl_ran_flat(random, 0.01, error_max);;
-        fbp = bgp;
-        gsl_matrix *data_matrix = simulate_data(random, n_pathways, true_pathway, stages);
-        add_noise(random, fbp, bgp, data_matrix);
-        
-        // compute the likelihood at the true parameters
-        compute_row_sum(*data_matrix, row_sum);
-        LinearProgressionParameters params(fbp, bgp);
-        LinearProgressionState true_state(*data_matrix, row_sum, n_genes, n_pathways, false);
-        for (unsigned int idx = 0; idx < n_genes; idx++) {
-            true_state.update_pathway_membership(idx, true_pathway[idx]);
-        }
-        double true_log_lik = compute_pathway_likelihood(true_state, params);
-
-        seed = gsl_rng_get(random);
-        vector<double> *fbps = new vector<double>(), *bgps = new vector<double>();
-        ParticleGibbs<LinearProgressionState, LinearProgressionParameters> pg = run_pg_from_matrix(seed, data_matrix, n_pathways,   n_pg_iter, n_particles, n_smc_iter, n_kernel_iter, n_mh_w_gibbs_iter, has_passenger, swap_prob, 0.0, error_max, fbps, bgps);
-
-        unsigned int bgp_q = 0;
-        for (unsigned int j = 0; j < bgps->size(); j++) {
-            if (bgp > bgps->at(j)) {
-                bgp_q += 1;
-            }
-        }
-        double u =  (double)bgp_q/bgps->size();
-        zi[rep] = gsl_cdf_gaussian_Qinv(u, 1);
-        chi2 += pow(zi[rep], 2);
-        cout << "True log lik: " << true_log_lik << endl;
-        cout << "BGP: " << bgp << endl;
-        cout << "FBP: " << fbp << endl;
-        cout << "Z_i: " << zi[rep] << endl;
-        cout << "===========" << endl;
-        
-        delete data_matrix;
-    }
-    // 6. test that the mean of Z = 0 using {Z_i}. If the null hypothesis is rejected, then the posterior code is incorrectly implemented.
-    cout << "chi^2: " << chi2 << endl;
-    // check that |z| < 1.96
-    double pval = 1 - gsl_cdf_chisq_P(chi2, num_reps);
-    assert(pval > 0.05);
-    
-    for (size_t i = 0; i < num_reps; i++) {
-        cout << zi[i] << " ";
-    }
-}
-
-int main()
-{
-    boost::filesystem::path curr_path = boost::filesystem::current_path();
-    cout << "Exec dir: " <<  curr_path.string() << endl;
-    // when running locally (for debugging) provide path specific to your local computer
-    //string data_path = "../../data/test";
-    //string data_path2 = "../../data/test/error0.001/";
-    //string data_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/test";
-    //string data_path2 = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/test/error0.001/";
-
-//    test_likelihood(data_path, false);
-//    test_likelihood(data_path2, true);
-//    test_prior_sampling();
-//    test_prior_calculation();
-//    test_log_marginal_estimates();
-    // turns out that posterior test proposed in Cook, Gelman, Rubin may not be correct
-    // see the correction: http://www.stat.columbia.edu/~gelman/research/published/cook_gelman_rubin_correction.
-    // implement Geweke test instead. postpone posterior test until then.
-    //test_posterior(); // this takes about 5 minutes depending on the hardware
-
     double error = 0.05;
     const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/matrix.csv";
     const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/generative_mem_mat.csv";
     const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/mcmc/";
-
-//    double error = 0.1;
-//    const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep99/matrix.csv";
-//    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep99/generative_mem_mat.csv";
-//    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep99/mcmc/";
+    
+    //    double error = 0.1;
+    //    const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep99/matrix.csv";
+    //    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep99/generative_mem_mat.csv";
+    //    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep99/mcmc/";
     unsigned int *true_pathway = new unsigned int[100];
     read_ground_truth_pathway_from_matrix(true_pathway_file, true_pathway);
     double log_lik_at_truth = compute_likelihood(input_data, true_pathway, 5, 100, true, error, error);
     cout << log_lik_at_truth << endl;
-    //run_pg(21, input_data, output_path, 5, 30, 200, 100, 1, 20, true, 0.1, 0.0, 0.2, 0.05, true, 4);
-    //run_mcmc(121, input_data, output_path, 5, 10000, 20, 100, true, 0.1, 0.0, 0.2, 0.05);
+    run_mcmc(121, input_data, output_path, 5, 10000, 20, 100, true, 0.1, 0.0, 0.2, 0.05);
+}
+
+int main(int argc, char *argv[])
+{
+    bool run_test = true;
+    if (run_test) {
+        if (argc != 2)
+            exit(-1);
+        
+        string root_path(argv[1]);
+        string lik_test_path1 = root_path + "/data/test/Without_passengers/";
+        string lik_test_path2 = root_path + "/data/test/With_passengers/";
+
+        test_uniform_prior_calculation();
+        test_likelihood(lik_test_path1, false);
+        test_likelihood(lik_test_path2, true);
+        test_log_marginal_estimates();
+    } else {
+        test_run();
+    }
 
     return 0;
 }

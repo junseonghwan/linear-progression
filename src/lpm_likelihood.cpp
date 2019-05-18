@@ -76,7 +76,6 @@ double log_pathway_proposal(const vector<unsigned int> &pathway, unsigned int n_
     return log_prior;
 }
 
-
 double compute_log_lik_active(unsigned int n_mutations, unsigned int pathway_size, double bgp, double fbp)
 {
     if (pathway_size <= 0) {
