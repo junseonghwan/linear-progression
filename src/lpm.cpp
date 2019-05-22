@@ -33,31 +33,6 @@ bool do_swap_move(unsigned int num_driver_pathways, double unif, double pathway_
     return (num_driver_pathways >= 2 && unif < pathway_swap_prob);
 }
 
-void gibbs_move(gsl_rng *random, LinearProgressionParameters &params,
-                                        LinearProgressionState &state, double pathway_swap_prob,
-                                        unsigned int num_driver_pathways, unsigned int num_genes)
-{
-    vector<double> gibbs_log_liks(state.get_num_pathways());
-    vector<double> gibbs_probs(state.get_num_pathways());
-    for (unsigned int i = 0; i < 1; i++) {
-        // sample a gene at random and sample pathway at random
-        double prev_log_lik = state.get_log_lik();
-        unsigned int gene_idx = gsl_rng_uniform_int(random, num_genes);
-        unsigned int old_pathway = state.get_pathway_membership_of(gene_idx);
-        for (unsigned int k = 0; k < state.get_num_pathways(); k++) {
-            if (k == old_pathway) {
-                gibbs_log_liks[k] = prev_log_lik;
-            }
-            state.update_pathway_membership(gene_idx, k);
-            gibbs_log_liks[k] = compute_pathway_likelihood(state, params);
-        }
-        normalize(gibbs_log_liks, gibbs_probs);
-        unsigned int new_pathway = multinomial(random, gibbs_probs);
-        state.update_pathway_membership(gene_idx, new_pathway);
-        state.set_log_lik(gibbs_log_liks[new_pathway]);
-    }
-}
-
 void mh_move_params(gsl_rng *random,
                     LinearProgressionParameters &params,
                     LinearProgressionState &state,
@@ -88,7 +63,7 @@ void mh_move_params(gsl_rng *random,
 }
 
 unsigned int *pathway_indices = 0;
-void mh_move(gsl_rng *random,
+void mh_move_pathway(gsl_rng *random,
              LinearProgressionParameters &params,
              LinearProgressionState &state,
              unsigned int n_genes,
@@ -131,25 +106,8 @@ void mh_move(gsl_rng *random,
 
         log_unif = log(gsl_ran_flat(random, 0.0, 1.0));
         log_accept_ratio = (new_log_lik - prev_log_lik);
-        if (is_swap_move) {
-            unsigned int n_passengers = 0, n_drivers = 0;
-            if (pathway1 == state.get_num_driver_pathways()) {
-                // genes in pathway1 are becoming driver genes
-                // genes in pathway2 are becoming passenger genes
-                n_drivers = state.get_pathway_size(pathway1);
-                n_passengers = state.get_pathway_size(pathway2);
-                log_accept_ratio += (n_drivers * log(prior_driver_prob) + n_passengers * log(1-prior_driver_prob));
-                log_accept_ratio -= (n_passengers * log(prior_driver_prob) + n_drivers * log(1-prior_driver_prob));
-            }
-            else if (pathway2 == state.get_num_driver_pathways()) {
-                // genes in pathway1 are becoming passenger genes
-                // genes in pathway2 are becoming driver genes
-                n_drivers = state.get_pathway_size(pathway2);
-                n_passengers = state.get_pathway_size(pathway1);
-                log_accept_ratio += (n_drivers * log(prior_driver_prob) + n_passengers * log(1-prior_driver_prob));
-                log_accept_ratio -= (n_passengers * log(prior_driver_prob) + n_drivers * log(1-prior_driver_prob));
-            }
-        } else {
+
+        if (!is_swap_move) {
             if (pathway1 < state.get_num_driver_pathways() && pathway2 == state.get_num_driver_pathways()) {
                 // assigning a driver gene to a passenger gene
                 log_accept_ratio += (log(1-prior_driver_prob) - log(prior_driver_prob));
@@ -186,7 +144,8 @@ void run_mcmc(long seed,
               double swap_prob,
               double fbp_max,
               double bgp_max,
-              double mh_proposal_sd)
+              double mh_proposal_sd,
+              double prior_driver_prob)
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
@@ -215,9 +174,9 @@ void run_mcmc(long seed,
     gsl_matrix *states = gsl_matrix_alloc(n_samples, n_genes);
     vector<double> bgps;
     vector<double> fbps;
-    
-    run_mcmc_from_matrix(seed, *obs_matrix, model_len, n_mcmc_iter, n_mh_w_gibbs_iter, thinning, has_passenger, swap_prob, fbp_max, bgp_max, mh_proposal_sd, states, bgps, fbps);
-    
+
+    run_mcmc_from_matrix(seed, *obs_matrix, model_len, n_mcmc_iter, n_mh_w_gibbs_iter, thinning, has_passenger, swap_prob, fbp_max, bgp_max, mh_proposal_sd, states, bgps, fbps, prior_driver_prob);
+
     // print the samples to files
     string output_path_str(output_path, strlen(output_path));
     write_vector(output_path_str + "/bgps.csv" , bgps);
@@ -239,43 +198,45 @@ void run_mcmc_from_matrix(long seed,
                           double mh_proposal_sd,
                           gsl_matrix *states,
                           vector<double> &bgps,
-                          vector<double> &fbps)
+                          vector<double> &fbps,
+                          double prior_driver_prob)
 {
     unsigned int n_patients = obs_matrix.size1;
     unsigned int n_genes = obs_matrix.size2;
-    
+
     if (model_len >= n_genes)
     {
         cerr << "Maximum model length cannot be larger than the number of genes." << endl;
         exit(-1);
     }
-    
+
     vector<unsigned int> row_sum(n_patients);
     compute_row_sum(obs_matrix, row_sum);
-    
+
     // allocate random object
     gsl_rng *random = generate_random_object(seed);
-    
+
     pathway_indices = new unsigned int[model_len];
     for (unsigned int i = 0; i < model_len; i++) {
         pathway_indices[i] = i;
     }
-    
+
     double bgp_init = gsl_ran_flat(random, 0, bgp_max);
     double fbp_init = bgp_init;
     if (fbp_max > 0) {
         fbp_init = gsl_ran_flat(random, 0, fbp_max);
     }
+    double path_swap_prob = 0.1;
     LinearProgressionParameters params(fbp_init, bgp_init);
     LinearProgressionState *state = new LinearProgressionState(obs_matrix, row_sum, n_genes, model_len, has_passenger);
     state->sample_min_valid_pathway(random);
     state->set_log_lik(compute_pathway_likelihood(*state, params));
     double best_log_lik = DOUBLE_NEG_INF;
-    
+
     size_t sample_idx = 0;
-    unsigned int burn_in = n_mcmc_iter / 10; // 10% of the iteration should be used for burn-in
+    unsigned int burn_in = n_mcmc_iter / 10; // 10% of the iteration are used for burn-in
     for (size_t i = 0; i < n_mcmc_iter; i++) {
-        mh_move(random, params, *state, n_genes, 0.1, 0.1);
+        mh_move_pathway(random, params, *state, n_genes, path_swap_prob, prior_driver_prob);
         mh_move_params(random, params, *state, n_mh_w_gibbs_iter, mh_proposal_sd, bgp_max);
         if (i % thinning == 0) {
             cout << "Iter: " << i << endl;
@@ -283,6 +244,7 @@ void run_mcmc_from_matrix(long seed,
             cout << "Curr state: " << state->to_string() << endl;
             cout << "Curr log_lik: " << state->get_log_lik() << endl;
             
+            // store state
             for (size_t g = 0; g < n_genes; g++) {
                 gsl_matrix_set(states, sample_idx, g, state->get_pathway_membership_of(g));
             }
@@ -526,6 +488,7 @@ double run_smc_from_matrix(long seed,
     smc_options.main_seed = gsl_rng_get(random);
     smc_options.resampling_seed = gsl_rng_get(random);
     smc_options.num_threads = n_threads;
+    smc_options.debug = true;
 
     // LPM model proposal
     LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
@@ -559,13 +522,9 @@ double run_smc_from_matrix(long seed,
         }
     }
     
-//    for (size_t i = 0; i < n_smc_iter; i++) {
-//        cout << "Z" << i << ": " << (smc.get_log_norm(i) - log(n_particles)) << endl;
-//    }
-
-    return smc.get_log_marginal_likelihood();
+    gsl_rng_free(random);
     
-    delete random;
+    return smc.get_log_marginal_likelihood();
 }
 
 double model_selection(long seed,
@@ -626,77 +585,104 @@ double model_selection(long seed,
         resampling_seeds.push_back(gsl_rng_get(random));
     }
     
-    double log_prior = log_pathway_uniform_prior(model_len, n_genes);
+    //double log_prior = log_pathway_uniform_prior(model_len, n_genes);
     vector<double> log_marginals(n_mc_samples);
-
-    auto start = std::chrono::high_resolution_clock::now();
     
-    printf("n_unique_states, fbp, bgp, log_marginal_sum, log_marginal_smc\n");
-    omp_set_num_threads(n_mc_jobs);
-#pragma omp parallel for
-    for (unsigned int n = 0; n < n_mc_samples; n++) {
-        // smc options
-        SMCOptions smc_options;
-        smc_options.num_particles = n_particles;
-        smc_options.ess_threshold = 1.0;
-        smc_options.resample_last_round = false;
-        smc_options.debug = false;
-        smc_options.csmc_set_partile_population = false;
-        smc_options.main_seed = main_seeds[n];
-        smc_options.resampling_seed = resampling_seeds[n];
-        smc_options.num_threads = n_smc_threads;
+    SMCOptions smc_options;
+    smc_options.num_particles = n_particles;
+    smc_options.ess_threshold = 1.0;
+    smc_options.resample_last_round = false;
+    smc_options.debug = false;
+    smc_options.csmc_set_partile_population = false;
+    smc_options.main_seed = 1;
+    smc_options.resampling_seed = 2;
+    smc_options.num_threads = n_smc_threads;
 
-        // LPM model proposal
-        LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
+    // LPM model proposal
+    LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
 
-        // Declare conditional SMC object
-        ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
-
-        // Construct LPMParam object
-        LinearProgressionParameters param(fbps[n], bgps[n]);
-
-        // run SMC
-        csmc.initialize(param);
-
-        // get log marginal estimate from SMC
-        if (log_marginal_smc != 0) {
-            log_marginal_smc[n] = csmc.get_log_marginal_likelihood();
-        }
-
-        // enumerate over all particles that was ever generated to approximate \sum_x p(y | x, \theta)
-        unordered_set<string> unique_states;
-        log_marginals[n] = DOUBLE_NEG_INF;
-        for (unsigned int r = 0; r < n_smc_iter; r++) {
-            for (unsigned int i = 0; i < n_particles; i++) {
-                const LinearProgressionState &state = csmc.get_state(r, i);
-                string key = state.to_string();
-                if (unique_states.count(key) == 0) {
-                    log_marginals[n] = log_add(log_marginals[n], state.get_log_lik());
-                    unique_states.insert(key);
-                }
-            }
-        }
-
-        log_marginals[n] += log_prior;
-        if (log_marginal_sum != 0) {
-            log_marginal_sum[n] = log_marginals[n];
-        }
+    // Declare conditional SMC object
+    ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
+    LinearProgressionParameters params(0.05, 0.05);
+    shared_ptr<ParticleGenealogy<LinearProgressionState> > genealogy = csmc.initialize(params);
+    cout << csmc.get_log_marginal_likelihood() << endl;
+    for (size_t i = 0; i < 100; i++) {
+        genealogy = csmc.run_csmc(params, genealogy);
+        cout << csmc.get_log_marginal_likelihood() << endl;
+        const LinearProgressionState * state = genealogy.get()->get_state_ptr_at(n_smc_iter - 1).get();
+        cout << state->to_string() << endl;
     }
-    auto end = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> elapsed = end - start;
-    cout << elapsed.count() << " seconds elapsed." <<  endl;
+
+//    auto start = std::chrono::high_resolution_clock::now();
+//
+//    printf("n_unique_states, fbp, bgp, log_marginal_sum, log_marginal_smc\n");
+//    omp_set_num_threads(n_mc_jobs);
+//#pragma omp parallel for
+//    for (unsigned int n = 0; n < n_mc_samples; n++) {
+//        // smc options
+//        SMCOptions smc_options;
+//        smc_options.num_particles = n_particles;
+//        smc_options.ess_threshold = 1.0;
+//        smc_options.resample_last_round = false;
+//        smc_options.debug = false;
+//        smc_options.csmc_set_partile_population = false;
+//        smc_options.main_seed = main_seeds[n];
+//        smc_options.resampling_seed = resampling_seeds[n];
+//        smc_options.num_threads = n_smc_threads;
+//
+//        // LPM model proposal
+//        LinearProgressionModel smc_model(n_genes, model_len, n_smc_iter, n_kernel_iter, *obs_matrix, row_sum, swap_prob, has_passenger, use_lik_tempering);
+//
+//        // Declare conditional SMC object
+//        ConditionalSMC<LinearProgressionState, LinearProgressionParameters> csmc(smc_model, smc_options);
+//
+//        // Construct LPMParam object
+//        LinearProgressionParameters param(fbps[n], bgps[n]);
+//
+//        // run SMC
+//        csmc.initialize(param);
+//
+//        // get log marginal estimate from SMC
+//        if (log_marginal_smc != 0) {
+//            log_marginal_smc[n] = csmc.get_log_marginal_likelihood();
+//        }
+//
+//        // enumerate over all particles that was ever generated to approximate \sum_x p(y | x, \theta)
+//        unordered_set<string> unique_states;
+//        log_marginals[n] = DOUBLE_NEG_INF;
+//        for (unsigned int r = 0; r < n_smc_iter; r++) {
+//            for (unsigned int i = 0; i < n_particles; i++) {
+//                const LinearProgressionState &state = csmc.get_state(r, i);
+//                string key = state.to_string();
+//                if (unique_states.count(key) == 0) {
+//                    log_marginals[n] = log_add(log_marginals[n], state.get_log_lik());
+//                    unique_states.insert(key);
+//                }
+//            }
+//        }
+//
+//        log_marginals[n] += log_prior;
+//        if (log_marginal_sum != 0) {
+//            log_marginal_sum[n] = log_marginals[n];
+//        }
+//    }
+//    auto end = std::chrono::high_resolution_clock::now();
+//    std::chrono::duration<double> elapsed = end - start;
+//    cout << elapsed.count() << " seconds elapsed." <<  endl;
 
     // combine log_marginals to approximate:
     // log(fhat) = \int_{\theta} \sum_x p(y|x, k, \theta) p(x|k) p(\theta) d(\theta)
-    double log_f_hat = DOUBLE_NEG_INF;
-    for (unsigned int n = 0; n < n_mc_samples; n++) {
-        log_f_hat = log_add(log_f_hat, log_marginals[n]);
-    }
+//    double log_f_hat = DOUBLE_NEG_INF;
+//    for (unsigned int n = 0; n < n_mc_samples; n++) {
+//        log_f_hat = log_add(log_f_hat, log_marginals[n]);
+//    }
+    
+    gsl_rng_free(random);
 
-    return log_f_hat;
+    //return log_f_hat;
+    return 0.0;
     
     delete obs_matrix;
-    delete random;
 }
 
 double model_selection(long seed,
@@ -748,7 +734,7 @@ double compute_likelihood(const char *dat_file,
     // load the data
     gsl_matrix *obs_matrix = read_csv(dat_file_str, false);
     return compute_likelihood_from_matrix(obs_matrix, pathway, model_len, n_genes, has_passenger, fbp, bgp);
-    
+
     delete obs_matrix;
 }
 
@@ -821,6 +807,7 @@ void generate_data(long seed,
     // output: data after contamination
     write_matrix_as_csv(data_matrix_file, *data_matrix);
     
-    delete random;
+    gsl_rng_free(random);
+    
     delete data_matrix;
 }

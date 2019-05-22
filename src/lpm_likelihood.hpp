@@ -19,6 +19,8 @@
 void fast_matrix_product(gsl_matrix &obs, unsigned int m, const vector<unsigned int> &pathway_membership, vector<unsigned int> &ret);
 
 double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes);
+double log_pathway_uniform_prior_log_scale(unsigned int n_pathways, unsigned int n_genes);
+double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes, bool has_passenger);
 double log_pathway_proposal(const LinearProgressionState &pathway, unsigned int n_genes);
 double log_pathway_proposal(const vector<unsigned int> &pathway, unsigned int n_pathways);
 double log_min_valid_pathway_proposal(const LinearProgressionState &pathway, unsigned int n_genes);

@@ -26,7 +26,8 @@ extern "C" {
                   double swap_prob,
                   double fbp_max,
                   double bgp_max,
-                  double mh_proposal_sd);
+                  double mh_proposal_sd,
+                  double prior_driver_prob = 0.1);
     
     void run_pg(long seed,
                 const char *dat_file,
@@ -111,7 +112,8 @@ void run_mcmc_from_matrix(long seed,
                           double mh_proposal_sd,
                           gsl_matrix *states,
                           vector<double> &bgps,
-                          vector<double> &fbps);
+                          vector<double> &fbps,
+                          double prior_driver_prob = 0.1);
 
 ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_matrix(
                         long seed,

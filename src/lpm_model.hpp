@@ -37,7 +37,7 @@ class LinearProgressionModel : public ProblemSpecification<LinearProgressionStat
     bool is_lik_tempered = false;
 
     // variables related to initial proposal: (1-alpha) \hat{p}(x|y) + alpha p(x)
-    double alpha = 0.5; // mixture proportion for the prior proposal within cSMC context
+    double alpha = 0.2; // mixture proportion for the prior proposal within cSMC context
     // prev_pop to be used for initial proposal
     unordered_map<LinearProgressionState, unsigned int, hash<LinearProgressionState> > *prev_pop = 0;
     unsigned int total_mass = 0;

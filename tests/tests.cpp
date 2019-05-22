@@ -251,14 +251,23 @@ void test_log_marginal_estimates()
 
 void test_uniform_prior_calculation()
 {
+    double log_uniform_prior1 = -log_pathway_uniform_prior(2, 3);
+    double log_uniform_prior2 = -log_pathway_uniform_prior_log_scale(2, 3);
+    assert(abs(log_uniform_prior1 - log_uniform_prior2) < ERR_TOL);
+    assert(abs(log_uniform_prior2 - log(1./6)) < ERR_TOL);
+
+    log_uniform_prior1 = -log_pathway_uniform_prior(5, 50);
+    log_uniform_prior2 = -log_pathway_uniform_prior_log_scale(5, 50);
+    assert(abs(log_uniform_prior1 - log_uniform_prior2) < ERR_TOL);
+
     unsigned int n_genes = 3;
     unsigned int n_pathways = 2;
-    double ret = log_pathway_uniform_prior(n_pathways, n_genes);
+    double ret = -log_pathway_uniform_prior(n_pathways, n_genes);
     assert(ret == -log(6));
 
     n_genes = 8;
     n_pathways = 3;
-    ret = log_pathway_uniform_prior(n_pathways, n_genes);
+    ret = -log_pathway_uniform_prior(n_pathways, n_genes);
 
     // sample pathways from the prior
     gsl_rng *random = generate_random_object(1);
@@ -298,20 +307,38 @@ void test_uniform_prior_calculation()
 
 void test_run()
 {
-    double error = 0.05;
-    const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/matrix.csv";
-    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/generative_mem_mat.csv";
-    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/mcmc/";
+//    double error = 0.05;
+//    const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/matrix.csv";
+//    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/generative_mem_mat.csv";
+//    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/mcmc/";
+
+    double error = 0.1;
+    const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep0/matrix.csv";
+    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep0/generative_mem_mat.csv";
+    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep0/mcmc/";
     
-    //    double error = 0.1;
-    //    const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep99/matrix.csv";
-    //    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep99/generative_mem_mat.csv";
-    //    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep99/mcmc/";
     unsigned int *true_pathway = new unsigned int[100];
     read_ground_truth_pathway_from_matrix(true_pathway_file, true_pathway);
     double log_lik_at_truth = compute_likelihood(input_data, true_pathway, 5, 100, true, error, error);
     cout << log_lik_at_truth << endl;
-    run_mcmc(121, input_data, output_path, 5, 10000, 20, 100, true, 0.1, 0.0, 0.2, 0.05);
+
+    run_mcmc(121, input_data, output_path, 5, 50000, 20, 100, true, 0.1, 0.0, 0.2, 0.05, 0.05);
+
+//    gsl_rng *random = generate_random_object(121);
+//    vector<double> log_Zs;
+//    for (size_t i = 0; i < 5; i++) {
+//        double log_Z = run_smc(gsl_rng_get(random), input_data, 6, 10000, 100, 1, true, 0.1, 0.05, 0.05, 0, 0, true, 6);
+//        log_Zs.push_back(log_Z);
+//        cout << log_Z << endl;
+//    }
+//    double log_Z_mean = gsl_stats_mean(log_Zs.data(), 1, log_Zs.size());
+//    double log_Z_sd = gsl_stats_sd_m(log_Zs.data(), 1, log_Zs.size(), log_Z_mean);
+//    double lb = log_Z_mean - 1.96 * log_Z_sd;
+//    double ub = log_Z_mean + 1.96 * log_Z_sd;
+//    cout << "95% CI: [" << lb << ", " << ub << "]" <<  endl;
+//    gsl_rng_free(random);
+    
+    //model_selection(1, input_data, 5, 1, 500, 100, 1, true, 0.1, 0, 0, 1, 6, 0, 0, true);
 }
 
 int main(int argc, char *argv[])

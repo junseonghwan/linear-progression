@@ -15,6 +15,9 @@
 
 double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes)
 {
+    if (n_genes < n_pathways) {
+        return DOUBLE_NEG_INF;
+    }
     vector<double> f(n_pathways);
     f[0] = 1.0;
     for (unsigned int k = 1; k < n_pathways; k++) {
@@ -22,8 +25,42 @@ double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes)
         for (unsigned int j = 0; j < k; j++) {
             f[k] -= gsl_sf_choose(k+1, j+1) * f[j];
         }
+        //cout << "log(f[" << k << "])= " << log(f[k]) << endl;
     }
-    return -log(f[n_pathways-1]);
+    return log(f[n_pathways-1]);
+}
+
+double log_pathway_uniform_prior_log_scale(unsigned int n_pathways, unsigned int n_genes)
+{
+    if (n_genes < n_pathways) {
+        return DOUBLE_NEG_INF;
+    }
+    vector<double> log_f(n_pathways);
+    log_f[0] = 0.0;
+    for (unsigned int k = 1; k < n_pathways; k++) {
+        log_f[k] = DOUBLE_NEG_INF;
+        for (unsigned int j = 0; j < k; j++) {
+            log_f[k] = log_add(log_f[k], gsl_sf_lnchoose(k+1, j+1) + log_f[j]);
+        }
+        log_f[k] = log_subtract(n_genes * log(k+1), log_f[k]);
+        //cout << "log(f[" << k << "])= " << log_f[k] << endl;
+    }
+    return log_f[n_pathways-1];
+}
+
+double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes, bool has_passenger)
+{
+    if (!has_passenger) {
+        return log_pathway_uniform_prior_log_scale(n_pathways, n_genes);
+    } else {
+        double log_sum = DOUBLE_NEG_INF;
+        double log_val;
+        for (size_t n = n_pathways; n < n_genes; n++) {
+            log_val = gsl_sf_lnchoose(n_genes, n) + log_pathway_uniform_prior_log_scale(n_pathways, n);
+            log_sum = log_add(log_sum, log_val);
+        }
+        return log_sum;
+    }
 }
 
 double log_min_valid_pathway_proposal(const LinearProgressionState &pathway, unsigned int n_genes)
@@ -181,21 +218,28 @@ double compute_pathway_likelihood(const LinearProgressionState &state,
         return DOUBLE_NEG_INF;
     }
 
-    //marginalize out stages for each patient
+    // declare local variables to be used in the loop
+    double log_lik_stage;
+    double log_lik_m;
+    unsigned int stage;
+    unsigned int pathway_size;
+    unsigned int r;
+    
     for (unsigned int m = 0; m < n_obs; m++) {
         const vector<unsigned short> &ret = state.get_cache_at(m);
-        double log_lik_stage = compute_likelihood_for_sample(ret, state, 0, params.get_bgp(), params.get_fbp());
-        double log_lik_m = log_lik_stage - log_n_driver_pathways; // -log_n_driver_pathways accounts for prior on stage assignment: (1/n_pathways)
+        log_lik_stage = compute_likelihood_for_sample(ret, state, 0, params.get_bgp(), params.get_fbp());
+        log_lik_m = log_lik_stage - log_n_driver_pathways; // -log_n_driver_pathways accounts for prior on stage assignment: (1/n_pathways)
         // marginalize over patient stages taking on {1, ..., driver pathways}
-        for (unsigned int stage = 1; stage < state.get_num_driver_pathways(); stage++) {
-            unsigned int pathway_size = state.get_pathway_size(stage);
-            unsigned int r = ret[stage];
+        for (stage = 1; stage < state.get_num_driver_pathways(); stage++) {
+            pathway_size = state.get_pathway_size(stage);
+            r = ret[stage];
             log_lik_stage += compute_log_lik_active(r, pathway_size, params.get_bgp(), params.get_fbp());
             log_lik_stage -= compute_log_lik_inactive(r, pathway_size, params.get_bgp());
             log_lik_m = log_add(log_lik_m, log_lik_stage - log_n_driver_pathways);
         }
         log_lik += log_lik_m;
     }
+
     return log_lik;
 }
 

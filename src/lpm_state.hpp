@@ -34,9 +34,9 @@ class LinearProgressionState
     bool allocate_passenger_pathway = false;
 
     double log_lik = 0.0;
-    
+
     void initialize_pathways();
-    
+
     const gsl_matrix &obs;
     //const vector<unsigned int> &row_sum;
     void update_cache(unsigned int g, unsigned int old_pathway, unsigned int new_pathway);

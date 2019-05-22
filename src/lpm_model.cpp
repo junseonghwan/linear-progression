@@ -7,6 +7,7 @@
 
 #include <assert.h>
 #include <cmath>
+#include <chrono>
 #include <numeric>
 #include <iostream>
 #include <list>
@@ -58,7 +59,7 @@ allocate_passenger_pathway(allocate_passenger_pathway), is_lik_tempered(is_lik_t
         pathway_indices[i] = i;
     }
 
-    log_uniform_prior = allocate_passenger_pathway ? log_pathway_uniform_prior(num_driver_pathways + 1, num_genes) : log_pathway_uniform_prior(num_driver_pathways, num_genes);
+    log_uniform_prior = -log_pathway_uniform_prior(num_driver_pathways, num_genes, allocate_passenger_pathway);
 }
 
 unsigned long LinearProgressionModel::num_iterations()
@@ -116,7 +117,7 @@ shared_ptr<LinearProgressionState> LinearProgressionModel::propose_initial(gsl_r
 shared_ptr<LinearProgressionState>LinearProgressionModel::propose_next(gsl_rng *random, unsigned int t, const LinearProgressionState &curr, double &log_w, LinearProgressionParameters &params)
 {
     // make a copy of the curr state
-    LinearProgressionState *new_state = new LinearProgressionState(curr);
+    LinearProgressionState *new_state = new LinearProgressionState(curr);    
     log_w = log_weight_helper(t, curr, curr, params, false);
     mh_kernel(random, t, *new_state, params);
     shared_ptr<LinearProgressionState> ret(new_state);
