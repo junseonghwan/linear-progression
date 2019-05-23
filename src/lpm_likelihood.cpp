@@ -13,6 +13,23 @@
 
 #include "lpm_likelihood.hpp"
 
+
+double log_prior(unsigned int n_pathways, unsigned int n_genes, bool has_passenger, double prior_passenger_prob, const unsigned int *pathway)
+{
+    if (!has_passenger) {
+        return -log_pathway_uniform_prior(n_pathways, n_genes, has_passenger);
+    }
+    double log_passenger_prob = log(prior_passenger_prob);
+    double log_driver_prob = log(1 - prior_passenger_prob);
+    size_t n_passengers = 0;
+    for (size_t i = 0; i < n_genes; i++) {
+        n_passengers += (pathway[i] < n_pathways) ? 0 : 1;
+    }
+    double log_prior = n_passengers * log_passenger_prob + (n_genes - n_passengers) *  log_driver_prob;
+    log_prior += -log_pathway_uniform_prior(n_pathways, n_genes, has_passenger);
+    return log_prior;
+}
+
 double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes)
 {
     if (n_genes < n_pathways) {

@@ -18,6 +18,7 @@
 // matrix product between m-th row of obs and mutation matrix induced by pathway_membership
 void fast_matrix_product(gsl_matrix &obs, unsigned int m, const vector<unsigned int> &pathway_membership, vector<unsigned int> &ret);
 
+double log_prior(unsigned int n_pathways, unsigned int n_genes, bool has_passenger, double prior_passenger_prob, const unsigned int *pathway);
 double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes);
 double log_pathway_uniform_prior_log_scale(unsigned int n_pathways, unsigned int n_genes);
 double log_pathway_uniform_prior(unsigned int n_pathways, unsigned int n_genes, bool has_passenger);

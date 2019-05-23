@@ -199,15 +199,6 @@ void read_error_params(string path_name, double &fbp, double &bgp)
     bgp = stod(line);
 
     dat_file.close();
-
-    
-//    getline (dat_file, line); // first line is just the header
-//    getline (dat_file, line);
-//    vector<string> results;
-//    boost::split(results, line, boost::is_any_of(","));
-//    fbp = stod(results[0]);
-//    bgp = stod(results[1]);
-//    dat_file.close();
 }
 
 double *convert_to_array(vector<unsigned int> &pathway_membership, unsigned int n_pathways)

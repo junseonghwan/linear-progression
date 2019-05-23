@@ -242,7 +242,7 @@ void test_log_marginal_estimates()
     double ub = mean + 1.96 * sd;
     assert(lb <= exact_log_marginal_lik[n_smc_iter-1] && exact_log_marginal_lik[n_smc_iter-1] <= ub);
     cout << "Truth: " << exact_log_marginal_lik[n_smc_iter - 1] << endl;
-    cout << "95% CI: " << "[" << lb << ", " << ub << "]" << endl;
+    cout << "95% CI: " << "[" << lb << ", " << ub << "]" << endl; 
 
     delete [] exact_log_marginal_lik;
     delete [] pathway;
@@ -312,17 +312,18 @@ void test_run()
 //    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/generative_mem_mat.csv";
 //    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/mcmc/";
 
-    double error = 0.1;
-    const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep0/matrix.csv";
-    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep0/generative_mem_mat.csv";
-    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.1/rep0/mcmc/";
-    
+    double error = 0.05;
+    const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.05/rep0/matrix.csv";
+    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.05/rep0/generative_mem_mat.csv";
+    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.05/rep0/mcmc/";
+
     unsigned int *true_pathway = new unsigned int[100];
     read_ground_truth_pathway_from_matrix(true_pathway_file, true_pathway);
     double log_lik_at_truth = compute_likelihood(input_data, true_pathway, 5, 100, true, error, error);
     cout << log_lik_at_truth << endl;
 
-    run_mcmc(121, input_data, output_path, 5, 50000, 20, 100, true, 0.1, 0.0, 0.2, 0.05, 0.05);
+    double prior_passenger_prob = 0.95;
+    run_mcmc(121, input_data, output_path, 4, 20000, 20, 100, true, 0.1, 0.0, 0.2, 0.05, prior_passenger_prob);
 
 //    gsl_rng *random = generate_random_object(121);
 //    vector<double> log_Zs;

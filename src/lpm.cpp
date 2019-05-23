@@ -7,6 +7,7 @@
 
 #include "lpm.hpp"
 
+#include <cassert>
 #include <chrono>
 #include <cstring>
 #include <fstream>
@@ -68,10 +69,10 @@ void mh_move_pathway(gsl_rng *random,
              LinearProgressionState &state,
              unsigned int n_genes,
              double pathway_swap_prob,
-             double prior_driver_prob)
+             double prior_passenger_prob)
 {
     double log_accept_ratio;
-    double prev_log_lik = state.get_log_lik();
+    double prev_log_lik = compute_pathway_likelihood(state, params);
     double new_log_lik;
 
     unsigned int *pathways_to_swap = new unsigned int[2];
@@ -84,7 +85,7 @@ void mh_move_pathway(gsl_rng *random,
         exit(-1);
     }
 
-    for (unsigned int i = 0; i < 1; i++) {
+    for (unsigned int i = 0; i < 3; i++) {
         double unif = gsl_ran_flat(random, 0.0, 1.0);
         is_swap_move = do_swap_move(state.get_num_driver_pathways(), unif, pathway_swap_prob);
         if (is_swap_move) {
@@ -110,10 +111,10 @@ void mh_move_pathway(gsl_rng *random,
         if (!is_swap_move) {
             if (pathway1 < state.get_num_driver_pathways() && pathway2 == state.get_num_driver_pathways()) {
                 // assigning a driver gene to a passenger gene
-                log_accept_ratio += (log(1-prior_driver_prob) - log(prior_driver_prob));
+                log_accept_ratio += (log(prior_passenger_prob) - log(1-prior_passenger_prob));
             } else if (pathway1 == state.get_num_driver_pathways() && pathway2 < state.get_num_driver_pathways()) {
                 // assigning from passenger to driver
-                log_accept_ratio += (log(prior_driver_prob) - log(1-prior_driver_prob));
+                log_accept_ratio += (log(1-prior_passenger_prob) - log(prior_passenger_prob));
             }
         }
 
@@ -145,7 +146,7 @@ void run_mcmc(long seed,
               double fbp_max,
               double bgp_max,
               double mh_proposal_sd,
-              double prior_driver_prob)
+              double prior_passenger_prob)
 {
     // convert char* to string
     string dat_file_str(dat_file, strlen(dat_file));
@@ -164,25 +165,30 @@ void run_mcmc(long seed,
     cout << "\tNum MHwGibbs iter: " << n_mh_w_gibbs_iter << endl;
     cout << "\tAllocate passenger pathway: " << to_string(has_passenger) << endl;
     cout << "\tSwap prob: " << swap_prob << endl;
+    cout << "\tPrior passenger prob: " << prior_passenger_prob << endl;
     cout << "\tFBP max: " << fbp_max << endl;
     cout << "\tBGP max: " << bgp_max << endl;
     cout << "}" << endl;
 
-    size_t n_samples = n_mcmc_iter/thinning;
-    n_samples = n_mcmc_iter % thinning  > 0 ? n_samples + 1 : n_samples;
-
+    size_t burn_in = n_mcmc_iter / 10;
+    size_t n_samples = (n_mcmc_iter-burn_in)/thinning + 1;
+    
     gsl_matrix *states = gsl_matrix_alloc(n_samples, n_genes);
     vector<double> bgps;
     vector<double> fbps;
 
-    run_mcmc_from_matrix(seed, *obs_matrix, model_len, n_mcmc_iter, n_mh_w_gibbs_iter, thinning, has_passenger, swap_prob, fbp_max, bgp_max, mh_proposal_sd, states, bgps, fbps, prior_driver_prob);
+    run_mcmc_from_matrix(seed, *obs_matrix, model_len, n_mcmc_iter, n_mh_w_gibbs_iter, thinning, burn_in, has_passenger, swap_prob, fbp_max, bgp_max, mh_proposal_sd, states, bgps, fbps, prior_passenger_prob);
 
     // print the samples to files
     string output_path_str(output_path, strlen(output_path));
     write_vector(output_path_str + "/bgps.csv" , bgps);
     write_vector(output_path_str + "/fbps.csv" , fbps);
     write_matrix_as_csv(output_path_str + "/states.csv" , *states);
+
+    process_samples(output_path_str, *obs_matrix, states, bgps, fbps, model_len, has_passenger, prior_passenger_prob);
+    
     gsl_matrix_free(states);
+
 }
 
 void run_mcmc_from_matrix(long seed,
@@ -191,6 +197,7 @@ void run_mcmc_from_matrix(long seed,
                           unsigned int n_mcmc_iter,
                           unsigned int n_mh_w_gibbs_iter,
                           unsigned int thinning,
+                          unsigned int burn_in,
                           bool has_passenger,
                           double swap_prob,
                           double fbp_max,
@@ -199,7 +206,7 @@ void run_mcmc_from_matrix(long seed,
                           gsl_matrix *states,
                           vector<double> &bgps,
                           vector<double> &fbps,
-                          double prior_driver_prob)
+                          double prior_passenger_prob)
 {
     unsigned int n_patients = obs_matrix.size1;
     unsigned int n_genes = obs_matrix.size2;
@@ -229,14 +236,14 @@ void run_mcmc_from_matrix(long seed,
     double path_swap_prob = 0.1;
     LinearProgressionParameters params(fbp_init, bgp_init);
     LinearProgressionState *state = new LinearProgressionState(obs_matrix, row_sum, n_genes, model_len, has_passenger);
-    state->sample_min_valid_pathway(random);
+    //state->sample_min_valid_pathway(random);
+    state->sample_pathway(random);
     state->set_log_lik(compute_pathway_likelihood(*state, params));
     double best_log_lik = DOUBLE_NEG_INF;
 
     size_t sample_idx = 0;
-    unsigned int burn_in = n_mcmc_iter / 10; // 10% of the iteration are used for burn-in
     for (size_t i = 0; i < n_mcmc_iter; i++) {
-        mh_move_pathway(random, params, *state, n_genes, path_swap_prob, prior_driver_prob);
+        mh_move_pathway(random, params, *state, n_genes, path_swap_prob, prior_passenger_prob);
         mh_move_params(random, params, *state, n_mh_w_gibbs_iter, mh_proposal_sd, bgp_max);
         if (i % thinning == 0) {
             cout << "Iter: " << i << endl;
@@ -244,12 +251,22 @@ void run_mcmc_from_matrix(long seed,
             cout << "Curr state: " << state->to_string() << endl;
             cout << "Curr log_lik: " << state->get_log_lik() << endl;
             
-            // store state
-            for (size_t g = 0; g < n_genes; g++) {
-                gsl_matrix_set(states, sample_idx, g, state->get_pathway_membership_of(g));
+            if (i >= burn_in) {
+                bgps.push_back(params.get_bgp());
+                fbps.push_back(params.get_fbp());
+
+                // store state
+                for (size_t g = 0; g < n_genes; g++) {
+                    gsl_matrix_set(states, sample_idx, g, state->get_pathway_membership_of(g));
+                }
+                sample_idx++;
             }
-            sample_idx++;
         }
+        if (i < burn_in) {
+            bgps.push_back(params.get_bgp());
+            fbps.push_back(params.get_fbp());
+        }
+
         if (state->get_log_lik() > best_log_lik) {
             best_log_lik = state->get_log_lik();
             cout << "=====" << endl;
@@ -258,18 +275,29 @@ void run_mcmc_from_matrix(long seed,
             cout << "=====" << endl;
         }
         
-        // store all parameters
-        bgps.push_back(params.get_bgp());
-        fbps.push_back(params.get_fbp());
-        
         // perform simple adaptation during burn-in
         if (i < burn_in) {
             mh_proposal_sd = params.get_bgp()/2;
         } else if (i == burn_in) {
             // compute empirical standard deviation of the parameters sampled and use it
             mh_proposal_sd = gsl_stats_sd(bgps.data(), 1, bgps.size());
+            bgps.clear();
+            fbps.clear();
         }
     }
+    
+    // store the last state
+    bgps.push_back(params.get_bgp());
+    fbps.push_back(params.get_fbp());
+    
+    // store state
+    for (size_t g = 0; g < n_genes; g++) {
+        gsl_matrix_set(states, sample_idx, g, state->get_pathway_membership_of(g));
+    }
+    sample_idx++;
+
+    
+    assert(sample_idx == states->size1);
 
     delete [] pathway_indices;
 }
@@ -521,10 +549,61 @@ double run_smc_from_matrix(long seed,
             }
         }
     }
-    
+
     gsl_rng_free(random);
-    
+
     return smc.get_log_marginal_likelihood();
+}
+
+void process_samples(const string output_path,
+                     const gsl_matrix &data,
+                     const gsl_matrix *states,
+                     vector<double> &posterior_bgps,
+                     vector<double> &posterior_fbps,
+                     unsigned int n_drivers,
+                     bool has_passenger,
+                     double prior_passenger_prob)
+{
+    unsigned int n_genes = data.size2;
+    unsigned int n_states = states->size1;
+
+    // find posterior mean
+    vector<double> fbp_mean(1), bgp_mean(1);
+    fbp_mean[0] = gsl_stats_mean(posterior_fbps.data(), 1, posterior_fbps.size());
+    bgp_mean[0] = gsl_stats_mean(posterior_bgps.data(), 1, posterior_bgps.size());
+
+    // compute log_lik for each of the states 1) at posterior mean and 2) theta_i
+    // compute log(model_evidence)
+    unsigned int *pathway = new unsigned int[n_genes];
+    vector<double> log_liks_at_posterior_mean(n_states);
+    double log_model_evidence = DOUBLE_NEG_INF;
+    double log_lik_at_i;
+    //double log_prior_at_i;
+    for (size_t i = 0; i < n_states; i++) {
+        for (size_t n = 0; n < n_genes; n++) {
+            pathway[n] = (unsigned int)gsl_matrix_get(states, i, n);
+        }
+        log_liks_at_posterior_mean[i] = compute_likelihood_from_matrix(&data, pathway, n_drivers, n_genes, has_passenger, fbp_mean[0], bgp_mean[0]);
+        log_lik_at_i = compute_likelihood_from_matrix(&data, pathway, n_drivers, n_genes, has_passenger, posterior_fbps[i], posterior_bgps[i]);
+        log_model_evidence = log_add(log_model_evidence, -log_lik_at_i);
+//        log_prior_at_i = log_prior(n_drivers, n_genes, has_passenger, prior_passenger_prob, pathway);
+        //log_model_evidence = log_add(log_model_evidence, -(log_lik_at_i + log_prior_at_i));
+    }
+    log_model_evidence -= log(n_states);
+    log_model_evidence *= -1;
+    cout << "Model len: " << n_drivers << ". log p(Y): " << log_model_evidence << endl;
+    
+    // output posterior mean
+    // output likelihood at posterior mean
+    // output model evidence estimate
+    write_vector(output_path + "/posterior_fbp.csv", fbp_mean);
+    write_vector(output_path + "/posterior_bgp.csv", bgp_mean);
+    write_vector(output_path + "/log_liks_at_posterior_mean.csv", log_liks_at_posterior_mean);
+    vector<double> vec;
+    vec.push_back(log_model_evidence);
+    write_vector(output_path + "/log_model_evidence.csv", vec);
+    
+    delete [] pathway;
 }
 
 double model_selection(long seed,
@@ -738,7 +817,7 @@ double compute_likelihood(const char *dat_file,
     delete obs_matrix;
 }
 
-double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
+double compute_likelihood_from_matrix(const gsl_matrix *obs_matrix,
                                       unsigned int *pathway,
                                       unsigned int n_drivers,
                                       unsigned int n_genes,

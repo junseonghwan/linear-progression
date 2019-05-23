@@ -1,4 +1,5 @@
 import numpy as np
+import scipy
 
 def parse_config(config_file):
     f = open(config_file, "r")

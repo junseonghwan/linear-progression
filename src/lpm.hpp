@@ -27,7 +27,7 @@ extern "C" {
                   double fbp_max,
                   double bgp_max,
                   double mh_proposal_sd,
-                  double prior_driver_prob = 0.1);
+                  double prior_passenger_prob = 0.9);
     
     void run_pg(long seed,
                 const char *dat_file,
@@ -61,6 +61,15 @@ extern "C" {
                    bool use_lik_tempering = false,
                    unsigned int n_threads = 4);
 
+    void process_samples(const string output_path,
+                         const gsl_matrix &data,
+                         const gsl_matrix *states,
+                         vector<double> &posterior_bgps,
+                         vector<double> &posterior_fbps,
+                         unsigned int n_drivers,
+                         bool has_passenger,
+                         double prior_passenger_prob);
+    
     // input fbps and bgps, the parameters to use
     // log_marginal_sum[n]: sum estimation
     // log_marginal_smc[n]: SMC estimation
@@ -105,6 +114,7 @@ void run_mcmc_from_matrix(long seed,
                           unsigned int n_mcmc_iter,
                           unsigned int n_mh_w_gibbs_iter,
                           unsigned int thinning,
+                          unsigned int burn_in,
                           bool has_passenger,
                           double swap_prob,
                           double fbp_max,
@@ -113,7 +123,7 @@ void run_mcmc_from_matrix(long seed,
                           gsl_matrix *states,
                           vector<double> &bgps,
                           vector<double> &fbps,
-                          double prior_driver_prob = 0.1);
+                          double prior_passenger_prob = 0.9);
 
 ParticleGibbs<LinearProgressionState, LinearProgressionParameters> run_pg_from_matrix(
                         long seed,
@@ -166,7 +176,7 @@ double model_selection(long seed,
                        unsigned int n_smc_threads,
                        bool use_lik_tempering = false);
 
-double compute_likelihood_from_matrix(gsl_matrix *obs_matrix,
+double compute_likelihood_from_matrix(const gsl_matrix *obs_matrix,
                                       unsigned int *pathway,
                                       unsigned int model_len,
                                       unsigned int n_genes,
