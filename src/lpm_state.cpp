@@ -25,7 +25,7 @@ n_genes(n_genes), num_driver_pathways(num_driver_pathways), allocate_passenger_p
     unsigned int n_pathways = allocate_passenger_pathway ? num_driver_pathways + 1 : num_driver_pathways;
     // initialize cache
     for (unsigned int m = 0; m < n_patients; m++) {
-        _cache_counts.push_back(vector<unsigned short>(n_pathways));
+        _cache_counts.push_back(vector<unsigned int>(n_pathways));
         compute_counts_for_sample(obs, row_sums, m, _cache_counts[m]);
     }
 }
@@ -81,7 +81,7 @@ void LinearProgressionState::update_cache(unsigned int g, unsigned int old_pathw
 {
     unsigned int n_patients = obs.size1;
     for (unsigned int m = 0; m < n_patients; m++) {
-        vector<unsigned short> &r = _cache_counts[m];
+        vector<unsigned int> &r = _cache_counts[m];
         double val = gsl_matrix_get(&obs, m, g);
         if (val == 1.0) {
             if (r[old_pathway] <= 0) {
@@ -160,7 +160,7 @@ bool LinearProgressionState::contains_empty_driver_pathway() const
     return false;
 }
 
-void LinearProgressionState::compute_counts_for_sample(const gsl_matrix &obs_matrix, const vector<unsigned int> &row_sums, unsigned int m, vector<unsigned short> &r) const
+void LinearProgressionState::compute_counts_for_sample(const gsl_matrix &obs_matrix, const vector<unsigned int> &row_sums, unsigned int m, vector<unsigned int> &r) const
 {
     if (r.size() != get_num_pathways()) {
         cerr << "Error: return vector size does not match the number of pathways." << endl;
@@ -246,7 +246,7 @@ string LinearProgressionState::to_string() const
     return str;
 }
 
-const vector<unsigned short> &LinearProgressionState::get_cache_at(unsigned int m) const
+const vector<unsigned int> &LinearProgressionState::get_cache_at(unsigned int m) const
 {
     if (m >= _cache_counts.size()) {
         cerr << "Error: cache size is " << _cache_counts.size() << ", but accessing element at " << m << endl;

@@ -34,6 +34,44 @@ bool path_exists(string path)
     return boost::filesystem::exists(path);
 }
 
+vector<vector<unsigned int> > read_states(string file_name, string sep)
+{
+    unsigned int n_patients = 0;
+    unsigned int n_genes = 0;
+
+    string line;
+    ifstream dat_file (file_name);
+    if (!dat_file.is_open())
+    {
+        cerr << "Could not open the file: " << file_name << endl;
+        exit(-1);
+    }
+
+    vector<string> results;
+    vector<vector<unsigned int> > dat;
+
+    while ( getline (dat_file, line) )
+    {
+        boost::split(results, line, boost::is_any_of(sep));
+        if (n_genes == 0) {
+            n_genes = results.size();
+        }
+        else if (results.size() != n_genes) {
+            cerr << "Error in the input file: " << file_name << ". Uneven length of genes." << endl;
+            exit(-1);
+        }
+        vector<unsigned int> row;
+        for (unsigned int i = 0; i < n_genes; i++) {
+            row.push_back(stoi(results[i]));
+        }
+        n_patients++;
+        dat.push_back(row);
+    }
+    dat_file.close();
+
+    return dat;
+}
+
 gsl_matrix *read_data(string file_name, string sep, bool header)
 {
     unsigned int n_patients = 0;
@@ -199,6 +237,23 @@ void read_error_params(string path_name, double &fbp, double &bgp)
     bgp = stod(line);
 
     dat_file.close();
+}
+
+void read_error_params(string path_name, vector<double> &vec)
+{
+    string line;
+    ifstream dat_file (path_name);
+    if (!dat_file.is_open())
+    {
+        cerr << "Could not open the file: " << path_name << endl;
+    }
+    
+    double error_param;
+    while ( getline (dat_file, line) )
+    {
+        error_param = stod(line);
+        vec.push_back(error_param);
+    }
 }
 
 double *convert_to_array(vector<unsigned int> &pathway_membership, unsigned int n_pathways)

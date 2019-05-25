@@ -33,7 +33,7 @@ double compute_log_lik_inactive(unsigned int n_mutations, unsigned int pathway_s
 //                                     vector<unsigned int> &pathway_sizes,
 //                                     unsigned int stage,
 //                                     double bgp, double fbp);
-double compute_likelihood_for_sample(const vector<unsigned short> &r,
+double compute_likelihood_for_sample(const vector<unsigned int> &r,
                                      const LinearProgressionState &state,
                                      unsigned int stage,
                                      double bgp, double fbp);

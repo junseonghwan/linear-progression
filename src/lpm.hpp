@@ -69,6 +69,11 @@ extern "C" {
                          unsigned int n_drivers,
                          bool has_passenger,
                          double prior_passenger_prob);
+    void perform_prediction(const char *mcmc_samples_path,
+                            const char *data_path,
+                            unsigned int model_len,
+                            bool has_passenger,
+                            unsigned int *true_pathway = 0);
     
     // input fbps and bgps, the parameters to use
     // log_marginal_sum[n]: sum estimation
@@ -183,5 +188,14 @@ double compute_likelihood_from_matrix(const gsl_matrix *obs_matrix,
                                       bool has_passenger,
                                       double fbp,
                                       double bgp);
+
+vector<double> compute_likelihood_per_row(const gsl_matrix *obs_matrix,
+                                      unsigned int *pathway,
+                                      unsigned int model_len,
+                                      unsigned int n_genes,
+                                      bool has_passenger,
+                                      double fbp,
+                                      double bgp,
+                                      unsigned int stage);
 
 #endif /* lpm_h */

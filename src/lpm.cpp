@@ -171,7 +171,7 @@ void run_mcmc(long seed,
     cout << "}" << endl;
 
     size_t burn_in = n_mcmc_iter / 10;
-    size_t n_samples = (n_mcmc_iter-burn_in)/thinning + 1;
+    size_t n_samples = (n_mcmc_iter-burn_in)/thinning;
     
     gsl_matrix *states = gsl_matrix_alloc(n_samples, n_genes);
     vector<double> bgps;
@@ -251,7 +251,7 @@ void run_mcmc_from_matrix(long seed,
             cout << "Curr state: " << state->to_string() << endl;
             cout << "Curr log_lik: " << state->get_log_lik() << endl;
             
-            if (i >= burn_in) {
+            if (i > burn_in) {
                 bgps.push_back(params.get_bgp());
                 fbps.push_back(params.get_fbp());
 
@@ -606,6 +606,74 @@ void process_samples(const string output_path,
     delete [] pathway;
 }
 
+void perform_prediction(const char *mcmc_samples_path,
+                        const char *data_path,
+                        unsigned int model_len,
+                        bool has_passenger,
+                        unsigned int *true_pathway)
+{
+    // read the file containing the pathway samples
+    string sample_path_str(mcmc_samples_path, strlen(mcmc_samples_path));
+    vector<vector<unsigned int> > states = read_states(sample_path_str + "/states.csv", ",");
+    cout << states.size() << ", " << states[0].size() << endl;
+
+    // read data for the patients to be predicted
+    string data_path_str(data_path, strlen(data_path));
+    gsl_matrix *data = read_data(data_path, ",");
+    size_t n_patients = data->size1;
+    size_t n_genes = states[0].size();
+    cout << "Prediction on " << n_patients << " patients." << endl;
+
+    // read posterior samples for the parameters
+    vector<double> fbps, bgps;
+    read_error_params(sample_path_str + "/fbps.csv", fbps);
+    read_error_params(sample_path_str + "/bgps.csv", bgps);
+
+    // compute the row sum for each patient
+    vector<unsigned int> row_sum(n_patients);
+    compute_row_sum(*data, row_sum);
+
+    vector<LinearProgressionState> lpm_states;
+    for (size_t i = 0; i < states.size(); i++) {
+        LinearProgressionState state(*data, row_sum, n_genes, model_len, has_passenger);
+        for (unsigned int n = 0; n < n_genes; n++) {
+            state.update_pathway_membership(n, states[i][n]);
+        }
+        lpm_states.push_back(state);
+    }
+    assert(lpm_states.size() == bgps.size());
+    
+    LinearProgressionState true_state(*data, row_sum, n_genes, model_len, has_passenger);
+    if (true_pathway != 0) {
+        for (unsigned int n = 0; n < n_genes; n++) {
+            true_state.update_pathway_membership(n, true_pathway[n]);
+        }
+    }
+    
+    double log_sum = DOUBLE_NEG_INF;
+    double log_val;
+    for (size_t m = 0; m < n_patients; m++) {
+        double max = DOUBLE_NEG_INF;
+        size_t best_stage = 0;
+        for (size_t stage = 0; stage < model_len; stage++) {
+            log_sum = DOUBLE_NEG_INF;
+            for (size_t i = 0; i < lpm_states.size(); i++) {
+                log_val = compute_likelihood_for_sample(lpm_states[i].get_cache_at(m), lpm_states[i], stage, bgps[i], fbps[i]);
+                log_sum = log_add(log_sum, log_val);
+                
+                if (true_pathway != 0) {
+                    log_val = compute_likelihood_for_sample(true_state.get_cache_at(m), true_state, stage, bgps[i], fbps[i]);
+                }
+            }
+            if (log_sum > max) {
+                max = log_sum;
+                best_stage = stage;
+            }
+        }
+    }
+    cout << endl;
+}
+
 double model_selection(long seed,
                        const char *dat_file,
                        unsigned int model_len,
@@ -848,8 +916,6 @@ double compute_likelihood_from_matrix(const gsl_matrix *obs_matrix,
 
     double log_lik = compute_pathway_likelihood(state, params);
     return log_lik;
-
-    delete obs_matrix;
 }
 
 void generate_data(long seed,

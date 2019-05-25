@@ -28,10 +28,12 @@ void compute_row_sum(const gsl_matrix &obs, vector<unsigned int> &row_sum);
 gsl_matrix *get_first_n_lines(gsl_matrix *obs_matrix, unsigned int n);
 gsl_matrix *read_data(string file_name, string sep, bool header = false);
 gsl_matrix *read_csv(string file_name, bool header = false);
+vector<vector<unsigned int> > read_states(string file_name, string sep);
 vector<unsigned int> *read_stages(string file_name);
 vector<unsigned int> *read_ground_truth(string path_name);
 unsigned int read_ground_truth_pathway_from_matrix(string file_name, unsigned int *ret); // returns number of pathways
 void read_error_params(string path_name, double &fbp, double &bgp);
+void read_error_params(string path_name, vector<double> &vec);
 unsigned int read_true_model_length(string path_name);
 
 // output related functions
