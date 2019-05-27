@@ -64,6 +64,9 @@ for rep in range(rep_begin, rep_end+1):
         functions.add_cmd(cmd, "--prior_passenger_prob", prior_passenger_prob)
 
         # run LPM
+        start = time.time()
         subprocess.run(cmd)
         # copy config.txt
         copyfile(config_file, output_path + "/" + config_file)
+        end = time.time()
+        print((end - start))
