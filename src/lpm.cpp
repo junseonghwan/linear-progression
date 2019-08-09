@@ -39,6 +39,42 @@ void mh_move_params(gsl_rng *random,
                     LinearProgressionState &state,
                     unsigned int n_mh_w_gibbs_iter,
                     double mh_proposal_sd,
+                    double error_max,
+                    bool update_bgp)
+{
+    double old_log_lik = compute_pathway_likelihood(state, params);
+    double old_error_prob = update_bgp ? params.get_bgp() : params.get_fbp();
+    for (size_t i = 0; i < n_mh_w_gibbs_iter; i++) {
+        double new_error_prob = gsl_ran_gaussian(random, mh_proposal_sd) + old_error_prob;
+        if (new_error_prob > 0 && new_error_prob <= error_max) {
+            if (update_bgp) {
+                params.set_bgp(new_error_prob);
+            } else {
+                params.set_fbp(new_error_prob);
+            }
+            double new_log_lik = compute_pathway_likelihood(state, params);
+            double log_u = log(gsl_ran_flat(random, 0.0, 1.0));
+            if (log_u < (new_log_lik - old_log_lik)) {
+                // accept
+                old_log_lik = new_log_lik;
+                old_error_prob = new_error_prob;
+            } else {
+                // revert
+                if (update_bgp) {
+                    params.set_bgp(old_error_prob);
+                } else {
+                    params.set_fbp(old_error_prob);
+                }
+            }
+        }
+    }
+}
+
+void mh_move_params(gsl_rng *random,
+                    LinearProgressionParameters &params,
+                    LinearProgressionState &state,
+                    unsigned int n_mh_w_gibbs_iter,
+                    double mh_proposal_sd,
                     double error_max)
 {
     double old_log_lik = compute_pathway_likelihood(state, params);
@@ -62,6 +98,7 @@ void mh_move_params(gsl_rng *random,
         }
     }
 }
+
 
 unsigned int *pathway_indices = 0;
 void mh_move_pathway(gsl_rng *random,
@@ -236,18 +273,25 @@ void run_mcmc_from_matrix(long seed,
     double path_swap_prob = 0.1;
     LinearProgressionParameters params(fbp_init, bgp_init);
     LinearProgressionState *state = new LinearProgressionState(obs_matrix, row_sum, n_genes, model_len, has_passenger);
-    //state->sample_min_valid_pathway(random);
-    state->sample_pathway(random);
+    state->sample_min_valid_pathway(random);
+    //state->sample_pathway(random);
     state->set_log_lik(compute_pathway_likelihood(*state, params));
     double best_log_lik = DOUBLE_NEG_INF;
 
     size_t sample_idx = 0;
     for (size_t i = 0; i < n_mcmc_iter; i++) {
         mh_move_pathway(random, params, *state, n_genes, path_swap_prob, prior_passenger_prob);
-        mh_move_params(random, params, *state, n_mh_w_gibbs_iter, mh_proposal_sd, bgp_max);
+        if (fbp_max == 0.0) {
+            mh_move_params(random, params, *state, n_mh_w_gibbs_iter, mh_proposal_sd, bgp_max);
+        } else {
+            // update bgp
+            mh_move_params(random, params, *state, n_mh_w_gibbs_iter, mh_proposal_sd, bgp_max, true);
+            // update fbp
+            mh_move_params(random, params, *state, n_mh_w_gibbs_iter, mh_proposal_sd, bgp_max, false);
+        }
         if (i % thinning == 0) {
             cout << "Iter: " << i << endl;
-            cout << "Curr params: " << params.get_bgp() << endl;
+            cout << "Curr BGP: " << params.get_bgp() << ", FBP: " << params.get_fbp() << endl;
             cout << "Curr state: " << state->to_string() << endl;
             cout << "Curr log_lik: " << state->get_log_lik() << endl;
             

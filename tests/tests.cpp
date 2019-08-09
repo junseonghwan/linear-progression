@@ -312,18 +312,19 @@ void test_run()
 //    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/generative_mem_mat.csv";
 //    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment2/With_passengers/5/error0.05/rep0/mcmc/";
 
-    double error = 0.05;
-    const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.05/rep0/matrix.csv";
-    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.05/rep0/generative_mem_mat.csv";
-    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Increasing/error0.05/rep0/mcmc/";
+    double error = 0.1;
+    const char* input_data = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Uniform/error0.1/rep0/matrix.csv";
+    const char* true_pathway_file = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Uniform/error0.1/rep0/generative_mem_mat.csv";
+    const char* output_path = "/Users/seonghwanjun/Dropbox/Research/single-cell-research/repos/linear-progression/data/Experiment1/With_passengers/Uniform/error0.1/rep0/mcmc/";
 
     unsigned int *true_pathway = new unsigned int[100];
     read_ground_truth_pathway_from_matrix(true_pathway_file, true_pathway);
     double log_lik_at_truth = compute_likelihood(input_data, true_pathway, 5, 100, true, error, error);
     cout << log_lik_at_truth << endl;
 
-    double prior_passenger_prob = 0.95;
-    run_mcmc(121, input_data, output_path, 4, 20000, 20, 100, true, 0.1, 0.0, 0.2, 0.05, prior_passenger_prob);
+    //double prior_passenger_prob = 0.95;
+    //run_mcmc(121, input_data, output_path, 4, 20000, 20, 100, true, 0.1, 0.0, 0.2, 0.05, prior_passenger_prob);
+    perform_prediction(output_path, input_data, 5, true, true_pathway);
 
 //    gsl_rng *random = generate_random_object(121);
 //    vector<double> log_Zs;
@@ -344,7 +345,7 @@ void test_run()
 
 int main(int argc, char *argv[])
 {
-    bool run_test = true;
+    bool run_test = false;
     if (run_test) {
         if (argc != 2)
             exit(-1);
