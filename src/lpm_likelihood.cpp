@@ -9,9 +9,8 @@
 
 #include <gsl/gsl_sf.h>
 
-#include <spf/numerical_utils.hpp>
-
 #include "lpm_likelihood.hpp"
+#include "numerical_utils.hpp"
 
 
 double log_prior(unsigned int n_pathways, unsigned int n_genes, bool has_passenger, double prior_passenger_prob, const unsigned int *pathway)

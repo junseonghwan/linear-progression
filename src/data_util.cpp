@@ -308,71 +308,71 @@ void write_model_selection_output_to_file(string path, unsigned int n_patients,
     
 }
 
-void write_pg_output(string path,
-                     ParticleGibbs<LinearProgressionState, LinearProgressionParameters> &pg,
-                     LPMParamProposal &pg_proposal)
-{
-    vector<shared_ptr<LinearProgressionParameters> > &params = pg.get_parameters();
-    vector<double > log_marginals = pg.get_log_marginal_likelihoods();
-    vector<shared_ptr<ParticleGenealogy<LinearProgressionState> > > states = pg.get_states();
-
-    if (states.size() == 0) {
-        cout << "Warning: no posterior samples to write!" << endl;
-        return;
-    }
-    if (pg_proposal.get_bgps().size() != pg_proposal.get_fbps().size()) {
-        cerr << "Error: number of BGPs sampled does not match the number of FBPs sampled." << endl;
-        exit(-1);
-    }
-
-    string state_file_path = path + "/states.csv";
-    string params_file_path = path + "/params.csv";
-    string log_marginal_file_path = path + "/log_marginal.csv";
-
-    ofstream state_file;
-    ofstream params_file;
-    ofstream log_marginal_file;
-    state_file.open(state_file_path, ios::out);
-    params_file.open(params_file_path, ios::out);
-    log_marginal_file.open(log_marginal_file_path, ios::out);
-    if (!state_file.is_open()) {
-        cerr << "Error: cannot open " << state_file_path << endl;
-        exit(-1);
-    }
-    if (!params_file.is_open()) {
-        cerr << "Error: cannot open " << params_file_path << endl;
-        exit(-1);
-    }
-    if (!log_marginal_file.is_open()) {
-        cerr << "Error: cannot open " << log_marginal_file_path << endl;
-        exit(-1);
-    }
-
-    // write states
-    unsigned int len = states[0]->size();
-    for (unsigned int i = 0; i < states.size(); i++) {
-        state_file << states[i]->get_state_at(len-1).to_string() << endl;
-    }
-    state_file.close();
-
-    // write all parameters
-    const vector<double> &bgps = pg_proposal.get_bgps();
-    const vector<double> &fbps = pg_proposal.get_fbps();
-    params_file << "FBP, BGP" << endl;
-    for (unsigned int i = 0; i < pg_proposal.get_bgps().size(); i++) {
-        params_file << bgps[i] << ", " << fbps[i] << endl;
-    }
-    params_file.close();
-    
-    // write log marginals
-    log_marginal_file << "FBP, BGP, LogMarginal" << endl;
-    for (unsigned int i = 0; i < log_marginals.size(); i++) {
-        log_marginal_file << params[i].get()->get_fbp() << ", " << params[i].get()->get_bgp() << ", " << to_string(log_marginals[i]) << endl;
-    }
-    log_marginal_file.close();
-    cout << "Finished writing data!" << endl;
-
-}
+//void write_pg_output(string path,
+//                     ParticleGibbs<LinearProgressionState, LinearProgressionParameters> &pg,
+//                     LPMParamProposal &pg_proposal)
+//{
+//    vector<shared_ptr<LinearProgressionParameters> > &params = pg.get_parameters();
+//    vector<double > log_marginals = pg.get_log_marginal_likelihoods();
+//    vector<shared_ptr<ParticleGenealogy<LinearProgressionState> > > states = pg.get_states();
+//
+//    if (states.size() == 0) {
+//        cout << "Warning: no posterior samples to write!" << endl;
+//        return;
+//    }
+//    if (pg_proposal.get_bgps().size() != pg_proposal.get_fbps().size()) {
+//        cerr << "Error: number of BGPs sampled does not match the number of FBPs sampled." << endl;
+//        exit(-1);
+//    }
+//
+//    string state_file_path = path + "/states.csv";
+//    string params_file_path = path + "/params.csv";
+//    string log_marginal_file_path = path + "/log_marginal.csv";
+//
+//    ofstream state_file;
+//    ofstream params_file;
+//    ofstream log_marginal_file;
+//    state_file.open(state_file_path, ios::out);
+//    params_file.open(params_file_path, ios::out);
+//    log_marginal_file.open(log_marginal_file_path, ios::out);
+//    if (!state_file.is_open()) {
+//        cerr << "Error: cannot open " << state_file_path << endl;
+//        exit(-1);
+//    }
+//    if (!params_file.is_open()) {
+//        cerr << "Error: cannot open " << params_file_path << endl;
+//        exit(-1);
+//    }
+//    if (!log_marginal_file.is_open()) {
+//        cerr << "Error: cannot open " << log_marginal_file_path << endl;
+//        exit(-1);
+//    }
+//
+//    // write states
+//    unsigned int len = states[0]->size();
+//    for (unsigned int i = 0; i < states.size(); i++) {
+//        state_file << states[i]->get_state_at(len-1).to_string() << endl;
+//    }
+//    state_file.close();
+//
+//    // write all parameters
+//    const vector<double> &bgps = pg_proposal.get_bgps();
+//    const vector<double> &fbps = pg_proposal.get_fbps();
+//    params_file << "FBP, BGP" << endl;
+//    for (unsigned int i = 0; i < pg_proposal.get_bgps().size(); i++) {
+//        params_file << bgps[i] << ", " << fbps[i] << endl;
+//    }
+//    params_file.close();
+//    
+//    // write log marginals
+//    log_marginal_file << "FBP, BGP, LogMarginal" << endl;
+//    for (unsigned int i = 0; i < log_marginals.size(); i++) {
+//        log_marginal_file << params[i].get()->get_fbp() << ", " << params[i].get()->get_bgp() << ", " << to_string(log_marginals[i]) << endl;
+//    }
+//    log_marginal_file.close();
+//    cout << "Finished writing data!" << endl;
+//
+//}
 
 void write_vector(string path, const vector<unsigned int> &data)
 {

@@ -13,11 +13,8 @@
 
 #include <gsl/gsl_matrix.h>
 
-#include <spf/pg.hpp>
-
 #include "lpm_state.hpp"
 #include "lpm_params.hpp"
-#include "lpm_pg_proposal.hpp"
 
 using namespace std;
 
@@ -42,9 +39,6 @@ void write_model_selection_output_to_file(string path, unsigned int n_patients,
                                           const vector<double> &fbps,
                                           const vector<double> &bgps,
                                           const vector<vector<double>> &log_marginals);
-void write_pg_output(string path,
-                     ParticleGibbs<LinearProgressionState, LinearProgressionParameters> &pg,
-                     LPMParamProposal &pg_proposal);
 void write_vector(string path, const vector<unsigned int> &data);
 void write_vector(string path, const vector<double> &data);
 void write_matrix_as_csv(string path, const gsl_matrix &data);

@@ -10,6 +10,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
 #include <gsl/gsl_rng.h>
+#include <gsl/gsl_randist.h>
 #include "lpm.hpp"
 
 using namespace std;

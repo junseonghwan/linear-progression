@@ -93,161 +93,161 @@ void test_likelihood(string data_path, bool has_passenger)
 }
 
 // run SMC to estimate the log marginal likelihood
-double test_marginal_likelihood_estimate_smc(long seed, gsl_matrix *data_matrix, unsigned int n_pathways, unsigned int n_particles, unsigned int n_smc_iter, unsigned int n_mcmc_iter, bool is_lik_tempered, double fbp, double bgp, unordered_map<string, double> true_probs, double exact_log_marginal_lik)
-{
-    double logZ;
-    double swap_prob = 0;
-    unsigned int n_genes = data_matrix->size2;
-
-    unsigned int *states = new unsigned int[n_particles * n_genes];
-    double *log_weights = new double[n_particles];
-    // run importance sampling with proposal from the prior
-    logZ = run_smc_from_matrix(seed, data_matrix, n_pathways, n_particles, n_smc_iter, n_mcmc_iter, false, swap_prob, fbp, bgp, states, log_weights, is_lik_tempered);
-    cout << "Estimated logZ: " << logZ << endl;
-    //assert(abs(exact_log_marginal_lik - logZ)/abs(exact_log_marginal_lik) < SMC_MARGINAL_ERR_TOL);
-
-    // perform tests using states and log_weights
-    string pathway_str;
-    unsigned int idx = 0;
-    unordered_map<string, double> counts;
-    normalize_destructively(log_weights, n_particles);
-    for (unsigned int i = 0; i < n_particles; i++) {
-        stringstream ss;
-        for (unsigned int j = 0; j < n_genes; j++) {
-            idx = i * n_genes + j;
-            ss << states[idx];
-            if (j < n_genes - 1) {
-                ss << ", ";
-            }
-        }
-        pathway_str = ss.str();
-        if (!counts.count(pathway_str)) {
-            counts[pathway_str] = 0;
-        }
-        counts[pathway_str] += log_weights[i];
-        //cout << pathway_str << ", " << counts[pathway_str] << endl;
-    }
-
-    double prob_est;
-    double prob_truth;
-    for (auto it = true_probs.begin(); it != true_probs.end(); ++it) {
-        pathway_str = it->first;
-        prob_est = counts[pathway_str];
-        prob_truth = true_probs[pathway_str];
-        cout << pathway_str << ", " << prob_est << ", " << prob_truth << endl;
-        assert(abs(prob_est - prob_truth) < SMC_MARGINAL_ERR_TOL);
-    }
-
-    cout << "SMC test passed!" << endl;
-    return logZ;
-    
-    delete [] states;
-    delete [] log_weights;
-}
+//double test_marginal_likelihood_estimate_smc(long seed, gsl_matrix *data_matrix, unsigned int n_pathways, unsigned int n_particles, unsigned int n_smc_iter, unsigned int n_mcmc_iter, bool is_lik_tempered, double fbp, double bgp, unordered_map<string, double> true_probs, double exact_log_marginal_lik)
+//{
+//    double logZ;
+//    double swap_prob = 0;
+//    unsigned int n_genes = data_matrix->size2;
+//
+//    unsigned int *states = new unsigned int[n_particles * n_genes];
+//    double *log_weights = new double[n_particles];
+//    // run importance sampling with proposal from the prior
+//    logZ = run_smc_from_matrix(seed, data_matrix, n_pathways, n_particles, n_smc_iter, n_mcmc_iter, false, swap_prob, fbp, bgp, states, log_weights, is_lik_tempered);
+//    cout << "Estimated logZ: " << logZ << endl;
+//    //assert(abs(exact_log_marginal_lik - logZ)/abs(exact_log_marginal_lik) < SMC_MARGINAL_ERR_TOL);
+//
+//    // perform tests using states and log_weights
+//    string pathway_str;
+//    unsigned int idx = 0;
+//    unordered_map<string, double> counts;
+//    normalize_destructively(log_weights, n_particles);
+//    for (unsigned int i = 0; i < n_particles; i++) {
+//        stringstream ss;
+//        for (unsigned int j = 0; j < n_genes; j++) {
+//            idx = i * n_genes + j;
+//            ss << states[idx];
+//            if (j < n_genes - 1) {
+//                ss << ", ";
+//            }
+//        }
+//        pathway_str = ss.str();
+//        if (!counts.count(pathway_str)) {
+//            counts[pathway_str] = 0;
+//        }
+//        counts[pathway_str] += log_weights[i];
+//        //cout << pathway_str << ", " << counts[pathway_str] << endl;
+//    }
+//
+//    double prob_est;
+//    double prob_truth;
+//    for (auto it = true_probs.begin(); it != true_probs.end(); ++it) {
+//        pathway_str = it->first;
+//        prob_est = counts[pathway_str];
+//        prob_truth = true_probs[pathway_str];
+//        cout << pathway_str << ", " << prob_est << ", " << prob_truth << endl;
+//        assert(abs(prob_est - prob_truth) < SMC_MARGINAL_ERR_TOL);
+//    }
+//
+//    cout << "SMC test passed!" << endl;
+//    return logZ;
+//
+//    delete [] states;
+//    delete [] log_weights;
+//}
 
 // for small number of genes and pathway, we can compute the exact value of the marginal likelihood by
 // enumerating over all possibilities
 // then, we can check that the marginal likelihood estimate from IS/SMC approaches this value
-void test_log_marginal_estimates()
-{
-
-    double fbp = 0.127;
-    double bgp = 0.1721;
-    double log_lik;
-
-    unsigned int n_patients = 10;
-    unsigned int n_pathways = 2;
-    unsigned int n_genes = 3;
-
-    unsigned int n_is_iter = 1;
-    unsigned int n_is_particles = 10000;
-
-    unsigned int n_smc_iter = 10;
-    unsigned int n_smc_particles = 20000;
-    double *exact_log_marginal_lik = new double[n_smc_iter];
-    for (unsigned int i = 0; i < n_smc_iter; i++) {
-        exact_log_marginal_lik[i] = DOUBLE_NEG_INF;
-    }
-
-    gsl_rng *random = generate_random_object(123);
-    vector<unsigned int> true_pathway(n_genes);
-    vector<unsigned int> stages(n_patients);
-    
-    unsigned int *pathway = new unsigned int[n_genes];
-    
-    propose_pathway(random, n_pathways, true_pathway);
-    sample_stages_uniform(random, n_pathways, stages);
-    gsl_matrix *data_matrix = simulate_data(random, n_pathways, true_pathway, stages);
-    add_noise(random, fbp, bgp, data_matrix);
-
-    // enumerate over possible pathway using for loops (one per gene)
-    unordered_map<string, double> state_log_liks;
-    string pathway_str;
-    for (unsigned int i = 0; i < n_pathways; i++) {
-        pathway[0] = i;
-        for (unsigned int j = 0; j < n_pathways; j++) {
-            pathway[1] = j;
-            for (unsigned int k = 0; k < n_pathways; k++) {
-                pathway[2] = k;
-
-                log_lik = compute_likelihood_from_matrix(data_matrix, pathway, n_pathways, n_genes, false, fbp, bgp);
-                if (log_lik != DOUBLE_NEG_INF) {
-                    pathway_str = to_string(pathway[0]) + ", " + to_string(pathway[1]) + ", " + to_string(pathway[2]);
-                    cout << pathway_str << ", " << log_lik << endl;
-                    state_log_liks[pathway_str] = log_lik;
-                    for (unsigned int t = 0; t < n_smc_iter; t++) {
-                        double beta_t = ((double)(t+1) / n_smc_iter);
-                        exact_log_marginal_lik[t] = log_add(exact_log_marginal_lik[t], beta_t * log_lik);
-                    }
-                }
-            }
-        }
-    }
-
-    for (auto it = state_log_liks.begin(); it != state_log_liks.end(); ++it) {
-        state_log_liks[it->first] = exp(state_log_liks[it->first] - exact_log_marginal_lik[n_smc_iter-1]);
-        cout << it->first << ", " << state_log_liks[it->first] << endl;
-    }
-
-    // add the prior factor
-    double log_prior = log(1./6);
-    for (unsigned int i = 0; i < n_smc_iter; i++) {
-        exact_log_marginal_lik[i] += log_prior;
-        if (i > 0) {
-            cout << (i+1) << "/" << n_smc_iter << ", " << exact_log_marginal_lik[i] << ", " << (exact_log_marginal_lik[i] - exact_log_marginal_lik[i-1]) << endl;
-        } else {
-            cout << (i+1) << "/" << n_smc_iter << ", " << exact_log_marginal_lik[i] << ", " << exact_log_marginal_lik[i] << endl;
-        }
-    }
-
-    long seed = gsl_rng_get(random);
-    test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_is_particles, n_is_iter, 1, false, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-1]);
-    
-    // test SMC algorithm using MH + tempering: n_mcmc_iter > 0 + is_lik_tempered = true
-    unsigned int n_mcmc_iter = 5;
-    unsigned int n_reps = 20;
-    bool is_lik_tempered = true;
-    vector<double> log_marginals(n_reps);
-    for (size_t i = 0; i < n_reps; i++) {
-        seed = gsl_rng_get(random);
-        double logZ = test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_smc_particles, n_smc_iter, n_mcmc_iter, is_lik_tempered, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-1]);
-        log_marginals[i] = logZ;
-    }
-
-    double mean = gsl_stats_mean(log_marginals.data(), 1, log_marginals.size());
-    double sd = gsl_stats_sd_m(log_marginals.data(), 1, log_marginals.size(), mean);
-    
-    // test that the 95% CI covers the truth
-    double lb = mean - 1.96 * sd;
-    double ub = mean + 1.96 * sd;
-    assert(lb <= exact_log_marginal_lik[n_smc_iter-1] && exact_log_marginal_lik[n_smc_iter-1] <= ub);
-    cout << "Truth: " << exact_log_marginal_lik[n_smc_iter - 1] << endl;
-    cout << "95% CI: " << "[" << lb << ", " << ub << "]" << endl; 
-
-    delete [] exact_log_marginal_lik;
-    delete [] pathway;
-    delete random;
-}
+//void test_log_marginal_estimates()
+//{
+//
+//    double fbp = 0.127;
+//    double bgp = 0.1721;
+//    double log_lik;
+//
+//    unsigned int n_patients = 10;
+//    unsigned int n_pathways = 2;
+//    unsigned int n_genes = 3;
+//
+//    unsigned int n_is_iter = 1;
+//    unsigned int n_is_particles = 10000;
+//
+//    unsigned int n_smc_iter = 10;
+//    unsigned int n_smc_particles = 20000;
+//    double *exact_log_marginal_lik = new double[n_smc_iter];
+//    for (unsigned int i = 0; i < n_smc_iter; i++) {
+//        exact_log_marginal_lik[i] = DOUBLE_NEG_INF;
+//    }
+//
+//    gsl_rng *random = generate_random_object(123);
+//    vector<unsigned int> true_pathway(n_genes);
+//    vector<unsigned int> stages(n_patients);
+//
+//    unsigned int *pathway = new unsigned int[n_genes];
+//
+//    propose_pathway(random, n_pathways, true_pathway);
+//    sample_stages_uniform(random, n_pathways, stages);
+//    gsl_matrix *data_matrix = simulate_data(random, n_pathways, true_pathway, stages);
+//    add_noise(random, fbp, bgp, data_matrix);
+//
+//    // enumerate over possible pathway using for loops (one per gene)
+//    unordered_map<string, double> state_log_liks;
+//    string pathway_str;
+//    for (unsigned int i = 0; i < n_pathways; i++) {
+//        pathway[0] = i;
+//        for (unsigned int j = 0; j < n_pathways; j++) {
+//            pathway[1] = j;
+//            for (unsigned int k = 0; k < n_pathways; k++) {
+//                pathway[2] = k;
+//
+//                log_lik = compute_likelihood_from_matrix(data_matrix, pathway, n_pathways, n_genes, false, fbp, bgp);
+//                if (log_lik != DOUBLE_NEG_INF) {
+//                    pathway_str = to_string(pathway[0]) + ", " + to_string(pathway[1]) + ", " + to_string(pathway[2]);
+//                    cout << pathway_str << ", " << log_lik << endl;
+//                    state_log_liks[pathway_str] = log_lik;
+//                    for (unsigned int t = 0; t < n_smc_iter; t++) {
+//                        double beta_t = ((double)(t+1) / n_smc_iter);
+//                        exact_log_marginal_lik[t] = log_add(exact_log_marginal_lik[t], beta_t * log_lik);
+//                    }
+//                }
+//            }
+//        }
+//    }
+//
+//    for (auto it = state_log_liks.begin(); it != state_log_liks.end(); ++it) {
+//        state_log_liks[it->first] = exp(state_log_liks[it->first] - exact_log_marginal_lik[n_smc_iter-1]);
+//        cout << it->first << ", " << state_log_liks[it->first] << endl;
+//    }
+//
+//    // add the prior factor
+//    double log_prior = log(1./6);
+//    for (unsigned int i = 0; i < n_smc_iter; i++) {
+//        exact_log_marginal_lik[i] += log_prior;
+//        if (i > 0) {
+//            cout << (i+1) << "/" << n_smc_iter << ", " << exact_log_marginal_lik[i] << ", " << (exact_log_marginal_lik[i] - exact_log_marginal_lik[i-1]) << endl;
+//        } else {
+//            cout << (i+1) << "/" << n_smc_iter << ", " << exact_log_marginal_lik[i] << ", " << exact_log_marginal_lik[i] << endl;
+//        }
+//    }
+//
+//    long seed = gsl_rng_get(random);
+//    test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_is_particles, n_is_iter, 1, false, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-1]);
+//
+//    // test SMC algorithm using MH + tempering: n_mcmc_iter > 0 + is_lik_tempered = true
+//    unsigned int n_mcmc_iter = 5;
+//    unsigned int n_reps = 20;
+//    bool is_lik_tempered = true;
+//    vector<double> log_marginals(n_reps);
+//    for (size_t i = 0; i < n_reps; i++) {
+//        seed = gsl_rng_get(random);
+//        double logZ = test_marginal_likelihood_estimate_smc(seed, data_matrix, n_pathways, n_smc_particles, n_smc_iter, n_mcmc_iter, is_lik_tempered, fbp, bgp, state_log_liks, exact_log_marginal_lik[n_smc_iter-1]);
+//        log_marginals[i] = logZ;
+//    }
+//
+//    double mean = gsl_stats_mean(log_marginals.data(), 1, log_marginals.size());
+//    double sd = gsl_stats_sd_m(log_marginals.data(), 1, log_marginals.size(), mean);
+//
+//    // test that the 95% CI covers the truth
+//    double lb = mean - 1.96 * sd;
+//    double ub = mean + 1.96 * sd;
+//    assert(lb <= exact_log_marginal_lik[n_smc_iter-1] && exact_log_marginal_lik[n_smc_iter-1] <= ub);
+//    cout << "Truth: " << exact_log_marginal_lik[n_smc_iter - 1] << endl;
+//    cout << "95% CI: " << "[" << lb << ", " << ub << "]" << endl;
+//
+//    delete [] exact_log_marginal_lik;
+//    delete [] pathway;
+//    delete random;
+//}
 
 void test_uniform_prior_calculation()
 {
@@ -357,7 +357,7 @@ int main(int argc, char *argv[])
         test_uniform_prior_calculation();
         test_likelihood(lik_test_path1, false);
         test_likelihood(lik_test_path2, true);
-        test_log_marginal_estimates();
+        //test_log_marginal_estimates();
     } else {
         test_run();
     }
