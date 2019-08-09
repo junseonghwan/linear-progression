@@ -12,14 +12,6 @@ addons:
       - boost
       - libomp
 script:
-  - git clone https://github.com/junseonghwan/spf.git
-  - pwd
-  - ls
-  - mkdir spf/build
-  - cd spf/build
-  - cmake ..
-  - make install
-  - cd ../../
   - mkdir build
   - cd build
   - cmake ..
