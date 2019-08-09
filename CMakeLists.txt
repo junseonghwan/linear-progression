@@ -1,6 +1,6 @@
 project(lpm)
 
-cmake_minimum_required (VERSION 3.12)
+cmake_minimum_required (VERSION 3.11)
 
 set(CMAKE_CXX_FLAGS "-std=c++11")
 set(CMAKE_C_FLAGS "-Wall -g" )
