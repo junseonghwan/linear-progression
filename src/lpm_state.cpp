@@ -9,8 +9,10 @@
 #include <iostream>
 #include <iterator>
 #include <gsl/gsl_randist.h>
-#include <spf/numerical_utils.hpp>
-#include <spf/sampling_utils.hpp>
+//#include <spf/numerical_utils.hpp>
+//#include <spf/sampling_utils.hpp>
+#include "numerical_utils.hpp"
+#include "sampling_utils.hpp"
 
 #include "data_util.hpp"
 #include "lpm_likelihood.hpp"

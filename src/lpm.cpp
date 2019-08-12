@@ -25,7 +25,9 @@
 
 #include "data_util.hpp"
 #include "lpm_likelihood.hpp"
-#include "lpm_model.hpp"
+//#include "lpm_model.hpp"
+#include "numerical_utils.hpp"
+#include "sampling_utils.hpp"
 
 using namespace std;
 

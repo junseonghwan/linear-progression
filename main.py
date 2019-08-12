@@ -23,7 +23,6 @@ else:
 n_mcmc_iter = int(configs["n_mcmc_iter"])
 n_mh_w_gibbs_iter = int(configs["n_mh_w_gibbs_iter"])
 has_passenger = bool(configs["has_passenger"].lower() == "true")
-import pdb; pdb.set_trace()
 swap_prob = float(configs["swap_prob"])
 fbp_max = float(configs["fbp_max"])
 bgp_max = float(configs["bgp_max"])
