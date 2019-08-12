@@ -10,7 +10,6 @@ import functions
 from numba import jit
 
 config_file = sys.argv[1]
-mode = sys.argv[2] # {model, mcmc}
 configs = functions.parse_config(config_file)
 
 seed = int(configs["seed"])
@@ -23,7 +22,8 @@ else:
     model_len_end = model_len_begin
 n_mcmc_iter = int(configs["n_mcmc_iter"])
 n_mh_w_gibbs_iter = int(configs["n_mh_w_gibbs_iter"])
-has_passenger = bool(configs["has_passenger"])
+has_passenger = bool(configs["has_passenger"].lower() == "true")
+import pdb; pdb.set_trace()
 swap_prob = float(configs["swap_prob"])
 fbp_max = float(configs["fbp_max"])
 bgp_max = float(configs["bgp_max"])
@@ -31,24 +31,22 @@ mh_proposal_sd = float(configs["mh_proposal_sd"])
 data_path = os.path.abspath(configs["data_path"])
 output_path = os.path.abspath(configs["output_path"])
 thinning_interval = int(configs["thinning_interval"])
+burn_in = int(configs["burn_in"])
 prior_passenger_prob = float(configs["prior_passenger_prob"])
 
 data_file = data_path
-mode_output_path = output_path + "/" + mode
 curr_time = str(time.time()).encode("utf-8")
 dir_name = hashlib.sha1(curr_time).hexdigest()
-output_path = mode_output_path + "/" + dir_name
+output_path = output_path + "/" + dir_name
 if not os.path.exists(output_path):
     os.makedirs(output_path)
 for model_len in range(model_len_begin, model_len_end+1):
-    if mode == "mcmc":
-        output_file = output_path + "/model" + str(model_len)
-        if not os.path.exists(output_file):
-            os.makedirs(output_file)
+    output_file = output_path + "/model" + str(model_len)
+    if not os.path.exists(output_file):
+        os.makedirs(output_file)
     cmd = ["./bin/lpm"]
     functions.add_cmd(cmd, "-d", data_file)
     functions.add_cmd(cmd, "-o", output_file)
-    functions.add_cmd(cmd, "-m", mode)
     functions.add_cmd(cmd, "-s", seed)
     functions.add_cmd(cmd, "-l", model_len)
     functions.add_cmd(cmd, "-p", n_mcmc_iter)
@@ -58,6 +56,7 @@ for model_len in range(model_len_begin, model_len_end+1):
     functions.add_cmd(cmd, "--has_passenger", has_passenger)
     functions.add_cmd(cmd, "--swap_prob", swap_prob)
     functions.add_cmd(cmd, "--mh_proposal_sd", mh_proposal_sd)
+    functions.add_cmd(cmd, "--burn_in", burn_in)
     functions.add_cmd(cmd, "--thinning_interval", thinning_interval)
     functions.add_cmd(cmd, "--prior_passenger_prob", prior_passenger_prob)
 
@@ -67,4 +66,4 @@ for model_len in range(model_len_begin, model_len_end+1):
     # copy config.txt
     copyfile(config_file, output_path + "/" + config_file)
     end = time.time()
-    print((end - start))
+    print(str(end - start) + " seconds.")

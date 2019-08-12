@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
     
     string data_path;
     string output_path;
-    string mode;
+//    string mode;
     unsigned long seed;
     unsigned int model_len;
     //unsigned int n_mc_samples;
@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
 //    unsigned int n_smc_iter;
 //    unsigned int n_kernel_iter;
     unsigned int n_mh_w_gibbs_iter;
+    unsigned int burn_in;
     unsigned int thinning_interval;
 //    unsigned int n_mc_threads;
 //    unsigned int n_smc_threads;
@@ -75,7 +76,7 @@ int main(int argc, char *argv[])
     ("help", "Put a help message here.")
     ("data_path,d", po::value<string>(&data_path)->required(), "Specify path to the data.")
     ("output_path,o", po::value<string>(&output_path)->required(), "Specify output path.")
-    ("mode,m", po::value<string>(&mode)->required(), "Specify mode: model for model selection and pg for particle Gibbs.")
+//    ("mode,m", po::value<string>(&mode)->required(), "Specify mode: model for model selection and pg for particle Gibbs.")
     ("seed,s", po::value<unsigned long>(&seed)->default_value(1), "Specify random seed.")
     ("model_len,l", po::value<unsigned int>(&model_len)->required(), "Specify model length.")
     //("n_mc_samples,M", po::value<unsigned int>(&n_mc_samples), "Specify number of MC samples to use for model selection.")
@@ -92,6 +93,7 @@ int main(int argc, char *argv[])
     ("has_passenger", po::value<bool>(&has_passenger)->default_value(true), "Specify whether to detect passenger genes. 0: false, 1: true.")
     ("swap_prob", po::value<double>(&swap_prob)->default_value(0.2), "Specify pathway swap probability for SMC move.")
     ("mh_proposal_sd", po::value<double>(&mh_proposal_sd)->default_value(0.05), "Specify standard deviation of Gaussian random walk proposal within MHwGibbs for inferring the parameters (for mode = pg).")
+    ("burn_in", po::value<unsigned int>(&burn_in)->default_value(0), "Specify burn in for MCMC.")
     ("thinning_interval", po::value<unsigned int>(&thinning_interval)->default_value(1), "Specify thinning interval for MCMC.")
     ("prior_passenger_prob", po::value<double>(&prior_passenger_prob)->default_value(0.95), "Specify prior probability of a gene being a passenger.")
     ;
@@ -104,12 +106,14 @@ int main(int argc, char *argv[])
         cout << desc << "\n";
         return 1;
     }
-    
-    if (mode == "mcmc") {
-        run_mcmc(seed, data_path.c_str(), output_path.c_str(), model_len, n_mcmc_iter, n_mh_w_gibbs_iter, thinning_interval, has_passenger, swap_prob, fbp_max, bgp_max, mh_proposal_sd, prior_passenger_prob);
-    } else {
-        cerr << "Unknown mode: " << mode << "." << endl;
-    }
+
+    run_mcmc(seed, data_path.c_str(), output_path.c_str(), model_len, n_mcmc_iter, n_mh_w_gibbs_iter, thinning_interval, burn_in, has_passenger, swap_prob, fbp_max, bgp_max, mh_proposal_sd, prior_passenger_prob);
+
+    //if (mode == "mcmc") {
+//        run_mcmc(seed, data_path.c_str(), output_path.c_str(), model_len, n_mcmc_iter, n_mh_w_gibbs_iter, thinning_interval, burn_in, has_passenger, swap_prob, fbp_max, bgp_max, mh_proposal_sd, prior_passenger_prob);
+//    } else {
+//        cerr << "Unknown mode: " << mode << "." << endl;
+//    }
     
 //    if (mode == "pg") {
 //        if (!vm.count("n_pg_iter")) {

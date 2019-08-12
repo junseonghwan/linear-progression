@@ -178,6 +178,7 @@ void run_mcmc(long seed,
               unsigned int n_mcmc_iter,
               unsigned int n_mh_w_gibbs_iter,
               unsigned int thinning,
+              unsigned int burn_in,
               bool has_passenger,
               double swap_prob,
               double fbp_max,
@@ -200,6 +201,8 @@ void run_mcmc(long seed,
     cout << "\tModel length: " << model_len << endl;
     cout << "\tNum MCMC iterations: " << n_mcmc_iter << endl;
     cout << "\tNum MHwGibbs iter: " << n_mh_w_gibbs_iter << endl;
+    cout << "\tThinning interval: " << thinning << endl;
+    cout << "\tBurn in: " << burn_in << endl;
     cout << "\tAllocate passenger pathway: " << to_string(has_passenger) << endl;
     cout << "\tSwap prob: " << swap_prob << endl;
     cout << "\tPrior passenger prob: " << prior_passenger_prob << endl;
@@ -207,7 +210,7 @@ void run_mcmc(long seed,
     cout << "\tBGP max: " << bgp_max << endl;
     cout << "}" << endl;
 
-    size_t burn_in = n_mcmc_iter / 10;
+    //size_t burn_in = n_mcmc_iter / 10;
     size_t n_samples = (n_mcmc_iter-burn_in)/thinning;
     
     gsl_matrix *states = gsl_matrix_alloc(n_samples, n_genes);

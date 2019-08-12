@@ -1,13 +1,14 @@
 seed: 1
-model_len: 8
-n_mcmc_iter: 30000
+model_len: 3-5
+n_mcmc_iter: 300
 n_mh_w_gibbs_iter: 10
-has_passenger: True
+has_passenger: false
 swap_prob: 0.1
 fbp_max: 0.3
 bgp_max: 0.2
 mh_proposal_sd: 0.05
 thinning_interval: 100
+burn_in: 100
 prior_passenger_prob: 0.99
 data_path: data/TCGA/COAD/coad.csv
 output_path: data/TCGA/COAD/

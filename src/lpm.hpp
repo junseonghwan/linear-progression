@@ -23,6 +23,7 @@ extern "C" {
                   unsigned int n_mcmc_iter,
                   unsigned int n_mh_w_gibbs_iter,
                   unsigned int thinning,
+                  unsigned int burn_in,
                   bool has_passenger,
                   double swap_prob,
                   double fbp_max,
