@@ -51,6 +51,8 @@ n_muts
 
 # retrieve number of 0's and 1's
 less_idx<-(n_muts_per_gene <= 21)
+n_ones<-sum(mut_matrix_all[,less_idx] == 1)
+n_zeros<-sum(mut_matrix_all[,less_idx] == 0)
 epsilon_estimate<-mean(mut_matrix_all[,less_idx] == 1)
 
 mut_matrix<-as.data.frame(mut_matrix)
