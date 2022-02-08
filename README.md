@@ -1,6 +1,6 @@
 # Linear Progression Model
 
-[![Build Status](https://travis-ci.com/junseonghwan/linear-progression.svg?token=wxZvzvzdwz1aU7zpr7vw&branch=master)](https://travis-ci.com/junseonghwan/linear-progression)
+<!--[![Build Status](https://travis-ci.com/junseonghwan/linear-progression.svg?token=wxZvzvzdwz1aU7zpr7vw&branch=master)](https://travis-ci.com/junseonghwan/linear-progression)-->
 
 The core library is written in C++. The library can be called from Python and the sample code is provided (see `run_xxx.py`). The python code depends on `ctypes` to load the library found in `bin/liblpm_lib.dylib`.
 
